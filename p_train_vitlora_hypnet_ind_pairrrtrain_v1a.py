@@ -1,6 +1,6 @@
 # GENERAL SHORTHAND:
-# There are three type of models: user (user), hyper (hyp), target (tg).
-# Note that user model is not trainable, as it only generates a fixed client representation here.
+# There are three type of models: _user (_user), hyper (hyp), target (tg).
+# Note that _user model is not trainable, as it only generates a fixed client representation here.
 # The actual client model is the target model.
 # There are three type of dataset: train, valid(ation), test
 # There are two types of users: participant (does local training) and bystander (does no training)
@@ -8,7 +8,7 @@
 # The term "pseudo" refers to object/process conducted within a pseudo-client (formed by pairing two users)
 # all variable names in main starts with "_" to prevent accidental shadowing of variable name
 # once training loop starts, all users before use must undergo hypernetwork weight assignment before use
-# This is an FL simulation, thus user and servers are not clearly demarcated.
+# This is an FL simulation, thus _user and servers are not clearly demarcated.
 
 import copy
 import time
@@ -35,6 +35,7 @@ from misc.helper_functs import (get_classes2indicator,
                                 split_users,
                                 sample_users,
                                 sample_user_pairs,
+                                transfer_weights,
                                 eval_all_users,
                                 process_result)
 
@@ -50,11 +51,11 @@ def create_users(num_users, userrep_list, usermodel, tgmodel):
     tgmodel_list = []
     for uidx in range(num_users):
         # copy tgarch (with pretrained weights)
-        tgmodel_list.append(copy.deepcopy(tgmodel))  # user model
+        tgmodel_list.append(copy.deepcopy(tgmodel))  # _user model
         # copy userarch (with appropriate initialization)
         local_usermodel = copy.deepcopy(usermodel)
         local_usermodel.assign_param(userrep_list[uidx])  # assigned weights should be frozen, debug and check!
-        usermodel_list.append(local_usermodel)  # user representation (a model that returns a fixed rep vector)
+        usermodel_list.append(local_usermodel)  # _user representation (a model that returns a fixed rep vector)
     return usermodel_list, tgmodel_list
 
 
@@ -73,8 +74,8 @@ def set_tgmodel_gradreq(tgmodel, hypmodel):
             assert False, "Key {} is not found in TargetModel".format(key_name)
 
 
-def do_evaluation(hyparch,  # hyparch can be fed None to evaluate the loaded pretrained model
-                  net_description,
+def do_evaluation(net_description,  # hyparch can be fed None to evaluate the loaded pretrained model
+                  hyparch,
                   all_tgarch_list,
                   all_userarch_list,
                   dataset_eval,
@@ -94,32 +95,32 @@ def do_evaluation(hyparch,  # hyparch can be fed None to evaluate the loaded pre
                                      hypmodel=hyparch)
             net_local.eval()
 
-        acc_test_local_list, loss_test_local_list = eval_all_users(net_list=all_tgarch_list,
+        acc_eval_local_list, loss_eval_local_list = eval_all_users(net_list=all_tgarch_list,
                                                                    dataset_eval=dataset_eval,
                                                                    dict_users_eval=dict_users_eval,
                                                                    num_users=args.num_users,
                                                                    batch_size=args.bs,
                                                                    device=args.device,
                                                                    return_all=True)
-        (acc_test_loc_part_mean, acc_test_loc_byst_mean, acc_test_loc_all_mean), \
-        (acc_test_loc_part_std, acc_test_loc_byst_std, acc_test_loc_all_std), \
-        (loss_test_loc_part_mean, loss_test_loc_byst_mean, loss_test_loc_all_mean) = \
-            process_result(acc_list=acc_test_local_list,
-                           loss_list=loss_test_local_list,
+        (acc_eval_loc_part_mean, acc_eval_loc_byst_mean, acc_eval_loc_all_mean), \
+        (acc_eval_loc_part_std, acc_eval_loc_byst_std, acc_eval_loc_all_std), \
+        (loss_eval_loc_part_mean, loss_eval_loc_byst_mean, loss_eval_loc_all_mean) = \
+            process_result(acc_list=acc_eval_local_list,
+                           loss_list=loss_eval_local_list,
                            idxs_part=idxs_user_part,
                            idxs_byst=idxs_user_byst)
         print("Model with {}."
-              "Average Participant Test Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
-              "Average Bystander Test Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
-              "Average All Test Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
+              "Average Participant Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
+              "Average Bystander Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
+              "Average All Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
             net_description,
-            acc_test_loc_part_mean, acc_test_loc_part_std, loss_test_loc_part_mean,
-            acc_test_loc_byst_mean, acc_test_loc_byst_std, loss_test_loc_byst_mean,
-            acc_test_loc_all_mean, acc_test_loc_all_std, loss_test_loc_all_mean),
+            acc_eval_loc_part_mean, acc_eval_loc_part_std, loss_eval_loc_part_mean,
+            acc_eval_loc_byst_mean, acc_eval_loc_byst_std, loss_eval_loc_byst_mean,
+            acc_eval_loc_all_mean, acc_eval_loc_all_std, loss_eval_loc_all_mean),
             flush=True)
-    return acc_test_loc_part_mean, acc_test_loc_part_std, loss_test_loc_part_mean, \
-           acc_test_loc_byst_mean, acc_test_loc_byst_std, loss_test_loc_byst_mean, \
-           acc_test_loc_all_mean, acc_test_loc_all_std, loss_test_loc_all_mean
+    return acc_eval_loc_part_mean, acc_eval_loc_part_std, loss_eval_loc_part_mean, \
+           acc_eval_loc_byst_mean, acc_eval_loc_byst_std, loss_eval_loc_byst_mean, \
+           acc_eval_loc_all_mean, acc_eval_loc_all_std, loss_eval_loc_all_mean
 
 
 def generate_weights(userrep, tgmodel, hypmodel):
@@ -188,14 +189,6 @@ def form_psuser(usermodel_pair, class2samples_train_pair, args):
     return classes_chose, psrep, psusers_train_pair
 
 
-def transfer_weights(weight_keys, src_model, tgt_model):
-    src_model_state = src_model.state_dict()
-    tgt_model_state = tgt_model.state_dict()
-    for k in weight_keys:
-        tgt_model_state[k] = src_model_state[k]
-    tgt_model.load_state_dict(tgt_model_state)
-
-
 def train_hypnet_paired(user_train_lr,
                         dataset_tr, sample_idxs_tr_pair,
                         hypmodel, tgmodel_pair, pseudouser_rep,
@@ -243,10 +236,12 @@ if __name__ == '__main__':
 
     # PARSE ARGS
     _args = args_parser()
-    _args.device = torch.device('cuda:{}'.format(_args.gpu) if torch.cuda.is_available() and _args.gpu != -1 else 'cpu')
     print("Printing all arguments:")
     for arg in vars(_args):
         print(arg, getattr(_args, arg))
+
+    # SET GPU
+    _args.device = torch.device('cuda:{}'.format(_args.gpu) if torch.cuda.is_available() and _args.gpu != -1 else 'cpu')
 
     # RANDOM SEED
     np.random.seed(_args.seed)
@@ -277,7 +272,7 @@ if __name__ == '__main__':
     with open(_data_info_path, 'rb') as handle:
         _dict_users_train, _dict_users_valid, _dict_users_test = pickle.load(handle)
     assert all([len(v) > 0 for k, v in _dict_users_valid.items()]), \
-        "(Assertion) Must have validation set for each user."
+        "(Assertion) Must have validation set for each _user."
     _class2samples_train = get_class2sample_dict(dataset=_dataset_train, dict_users=_dict_users_train)
     _class2samples_valid = get_class2sample_dict(dataset=_dataset_valid, dict_users=_dict_users_valid)
 
@@ -310,7 +305,7 @@ if __name__ == '__main__':
     check_model_gradreq(model=_hyparch, modelname="HyperArch (hyparch)")
 
     # CREATE USER MODEL (VECTOR REP) AND TARGET MODEL FOR EACH USER
-    # iterate through the validation set (not test set) of each user to obtain the representation vector
+    # iterate through the validation set (not test set) of each _user to obtain the representation vector
     _user_label_indicators = {k: get_classes2indicator([_dataset_valid[i][1] for i in v], _args.num_classes) for
                               k, v in _dict_users_valid.items()}
     _all_userarch_list, _all_tgarch_list = create_users(num_users=_args.num_users,
@@ -327,9 +322,9 @@ if __name__ == '__main__':
 
     # TEST PRETRAINED MODEL IN CONTEXT OF CURRENT PFL SCENARIO
     # TODO: create a model assessment function, as the code is repeated at the start and end.
-    # set local user models with initial hyperparameter
-    _ = do_evaluation(hyparch=None,
-                      net_description="Initial Model",
+    # set local _user models with initial hyperparameter
+    _ = do_evaluation(net_description="Initial Model",
+                      hyparch=None,
                       all_tgarch_list=_all_tgarch_list,
                       all_userarch_list=_all_userarch_list,
                       dataset_eval=_dataset_test,
@@ -381,16 +376,16 @@ if __name__ == '__main__':
                 _p.grad = _g if (_p.grad is None) else (_p.grad + _g)
 
         # HYPERARCH TRAINING: PHASE 2
-        # sample client pair to create pseudo user
+        # sample client pair to create pseudo _user
         _idxs_userpairs_sel = sample_user_pairs(idxs_users_sel=_idxs_users_sel)
         for _userpair_idx in _idxs_userpairs_sel:  # assume is group for future development
-            # build pseudo user (client pair) dataset
+            # build pseudo _user (client pair) dataset
             _classes_chose, _pseudouser_rep, _psusers_train_pair = form_psuser(
                 usermodel_pair=[_all_userarch_list[_uidx] for _uidx in _userpair_idx],
                 class2samples_train_pair=[_class2samples_train[_uidx] for _uidx in _userpair_idx],
                 args=_args)
 
-            # train psuedo user (client pair)
+            # train psuedo _user (client pair)
             _hypmodel_grad = \
                 train_hypnet_paired(user_train_lr=_tg_lr_curr,
                                     dataset_tr=_dataset_train,
@@ -421,8 +416,8 @@ if __name__ == '__main__':
         if (_round + 1) % _args.val_interval == 0:
             # copy weights of each target model weight to avoid potential disruption of training
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
-                do_evaluation(hyparch=_hyparch,
-                              net_description="Trained on Epoch {}".format(_round),
+                do_evaluation(net_description="Trained on Epoch {}".format(_round),
+                              hyparch=_hyparch,
                               all_tgarch_list=_all_tgarch_list,
                               all_userarch_list=_all_userarch_list,
                               dataset_eval=_dataset_valid,
@@ -463,8 +458,8 @@ if __name__ == '__main__':
                    "Best Model": _best_hyparch}
 
     for _net_desc, _hyparch_fin in _ckpt_types.items():
-        _ = do_evaluation(hyparch=_hyparch_fin,
-                          net_description=_net_desc,
+        _ = do_evaluation(net_description=_net_desc,
+                          hyparch=_hyparch_fin,
                           all_tgarch_list=_all_tgarch_list,
                           all_userarch_list=_all_userarch_list,
                           dataset_eval=_dataset_test,

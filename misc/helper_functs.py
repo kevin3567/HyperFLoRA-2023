@@ -25,8 +25,7 @@ def get_class2sample_dict(dataset, dict_users):
     return class2samples
 
 
-def get_param_count(module):  # check
-    """Get parameter count of module"""
+def get_param_count(module):
     param_ct = 0
     for key in module.state_dict().keys():
         param_ct += module.state_dict()[key].numel()
@@ -85,6 +84,13 @@ def sample_user_pairs(idxs_users_sel):
     idx_shuf = np.random.permutation(len(idxs_users_sel))
     idxs_userpairs_sel = idxs_users_sel[idx_shuf].reshape(-1, 2)
     return idxs_userpairs_sel
+
+def transfer_weights(weight_keys, src_model, tgt_model):
+    src_model_state = src_model.state_dict()
+    tgt_model_state = tgt_model.state_dict()
+    for k in weight_keys:
+        tgt_model_state[k] = src_model_state[k]
+    tgt_model.load_state_dict(tgt_model_state)
 
 
 def eval_all_users(net_list, dataset_eval, dict_users_eval, num_users, batch_size, device, return_all=True):
