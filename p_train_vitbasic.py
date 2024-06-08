@@ -16,7 +16,6 @@ from torch.utils.data import DataLoader
 
 from config.options import args_parser
 from misc.data_fetch import fetch_data, DatasetSplit
-from misc.test_users import test_img_local_all
 import os
 
 from config.hypparam_ViTBasic import create_architectures
@@ -27,6 +26,7 @@ EXP_TYPE_STUB = "train_vitbasic"
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+from misc.user_local import LocalTrainer_HN
 from misc.helper_functs import (sample_users,
                                 get_param_count,
                                 get_model_info,
@@ -34,7 +34,50 @@ from misc.helper_functs import (sample_users,
                                 transfer_weights,
                                 check_model_gradreq,
                                 split_users,
-                                process_result)
+                                process_result,
+                                eval_all_users)
+
+
+# TODO: Combine this with LocalUpdate_HN
+class LocalUpdate_Adaptor(object):
+    def __init__(self, args, dataset=None, idxs=None):
+        self.args = args
+        self.loss_func = torch.nn.CrossEntropyLoss()
+        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+
+    def train(self, net, lr=0.1, momentum=0.5):
+        net.train()
+        # train and update
+
+        # create new optimizer in client whenever a new training round starts
+        # use SGD optimizer (as it is stateless, and allows for change of _tg_lr_curr)
+        optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+
+        epoch_loss = []
+        sample_ct = 0
+        local_eps = self.args.local_ep
+        for iter in range(local_eps):
+            batch_loss = []
+
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.args.device), labels.to(self.args.device)
+                optimizer.zero_grad()
+                log_probs = net(images)
+                # this is an experimental loss
+                loss = self.loss_func(log_probs, labels)
+                if torch.isnan(loss):
+                    print("Loss is nan. Should check if there is an issue.")
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
+                optimizer.step()
+                # get statistics on training step
+                sample_ct += images.size(0)
+                batch_loss.append(loss.item())
+            epoch_loss.append(sum(batch_loss) / len(batch_loss))
+
+        return net.state_dict(), \
+               sum(epoch_loss) / len(epoch_loss), \
+               sample_ct
 
 
 # define the weights that should be frozen, public, and private.
@@ -88,11 +131,14 @@ def do_evaluation(net_description,
         model_user_list[idx].eval()
     # compute and aggregate _user accuracy using all users through local model on local test samples
     with torch.no_grad():
-        acc_eval_loc_list, loss_eval_loc_list = test_img_local_all(model_user_list,
-                                                                   args,
-                                                                   dataset_eval,
-                                                                   dict_users_eval,
-                                                                   return_all=True)
+        acc_eval_loc_list, loss_eval_loc_list = \
+            eval_all_users(net_list=model_user_list,
+                           dataset_eval=dataset_eval,
+                           dict_users_eval=dict_users_eval,
+                           num_users=args.num_users,
+                           batch_size=args.bs,
+                           device=args.device,
+                           return_all=True)
         (acc_eval_loc_part_mean, acc_eval_loc_byst_mean, acc_eval_loc_all_mean), \
         (acc_eval_loc_part_std, acc_eval_loc_byst_std, acc_eval_loc_all_std), \
         (loss_eval_loc_part_mean, loss_eval_loc_byst_mean, loss_eval_loc_all_mean) = \
@@ -133,47 +179,6 @@ def do_train(user_train_lr, dataset_tr, sample_idxs_tr,
                                            momentum=args.tg_momentum)
 
     return w_local, loss, sample_ct
-
-
-class LocalUpdate_Adaptor(object):
-    def __init__(self, args, dataset=None, idxs=None):
-        self.args = args
-        self.loss_func = torch.nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
-
-    def train(self, net, lr=0.1, momentum=0.5):
-        net.train()
-        # train and update
-
-        # create new optimizer in client whenever a new training round starts
-        # use SGD optimizer (as it is stateless, and allows for change of _tg_lr_curr)
-        optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-
-        epoch_loss = []
-        sample_ct = 0
-        local_eps = self.args.local_ep
-        for iter in range(local_eps):
-            batch_loss = []
-
-            for batch_idx, (images, labels) in enumerate(self.ldr_train):
-                images, labels = images.to(self.args.device), labels.to(self.args.device)
-                optimizer.zero_grad()
-                log_probs = net(images)
-                # this is an experimental loss
-                loss = self.loss_func(log_probs, labels)
-                if torch.isnan(loss):
-                    print("Loss is nan. Should check if there is an issue.")
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
-                optimizer.step()
-                # get statistics on training step
-                sample_ct += images.size(0)
-                batch_loss.append(loss.item())
-            epoch_loss.append(sum(batch_loss) / len(batch_loss))
-
-        return net.state_dict(), \
-               sum(epoch_loss) / len(epoch_loss), \
-               sample_ct
 
 
 if __name__ == '__main__':
