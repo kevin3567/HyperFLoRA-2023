@@ -5,7 +5,7 @@ import torch
 import itertools
 
 from config.options import args_parser
-from misc.data_fetch import fetch_data
+from misc.data_fetch import fetch_data_w_rand_order
 
 
 # Warning: in this implementation, it is possible that certain users can acquire mono-label shards (all samples
@@ -21,62 +21,54 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
     num_classes = len(dict_dataset)
     shard_per_class = int(shard_per_user * num_users / num_classes)  # reasonable only if dataset is balanced
     for label in dict_dataset.keys():  # for each unique label, do ...
-        x = dict_dataset[label]  # get list of relevant samples by uidx
+        x = dict_dataset[label]  # get list of relevant samples by idx
         num_leftover = len(x) % shard_per_class  # get remainder given balanced generate-to=shard assignment
         leftover = x[-num_leftover:] if num_leftover > 0 else []
         x = np.array(x[:-num_leftover]) if num_leftover > 0 else np.array(x)
         x = x.reshape((shard_per_class, -1))  # reorganize samples over shards_per_class
         x = list(x)  # convert from tensor to list, allow for variable generate count per shard
 
-        for i, idx in enumerate(leftover):  # add a leftover samples to each shards
+        for i, idx in enumerate(leftover):  # add a leftover sample to each shards
             x[i] = np.concatenate([x[i], [idx]])
         dict_dataset[label] = x
 
     # LABEL-TO-USER PROCESSING (if not given)
-    if len(rand_set_all) == 0:  # form shard-to-_user mapping if it is empty
+    # form shard-to-user mapping if it is empty
+    if len(rand_set_all) == 0:
         rand_set_all = list(range(num_classes)) * shard_per_class  # repeat [1..num_classes] tiling by shard_per_classes
         np.random.shuffle(rand_set_all)
-        rand_set_all = np.array(rand_set_all).reshape((num_users, -1))  # random assignment of shard to _user
-        # UNRESOLVED
-        print("[UNRESOLVED] Dummy Users With Mono-Label Shards: {}".format(
+        rand_set_all = np.array(rand_set_all).reshape((num_users, -1))  # random assignment of shard to user
+        # KNOWN ISSUE: be aware that sometimes, a user may grad mono-labels shards. If so, try a different seed.
+        print("[UNRESOLVED] Dummy Users With Mono-Label Shards: {}".format(  # this should be empty
             [x for x in rand_set_all if np.all(x == x[0])]),
             flush=True)
 
-    # SHARD-TO-USER PROCESSING (from label-to-_user)
-    # divide and assign
-    for i in range(num_users):  # for each _user, do ...
-        rand_set_label = rand_set_all[i]  # label assigned to _user
+    # SHARD-TO-USER PROCESSING (from label-to-user)
+    # based on labels acquired by user, assign a random shard belonging to the label to the user;
+    # sample (idxs) within the shard are thereby acquired by the user.
+    for i in range(num_users):  # for each user, do ...
+        rand_set_label = rand_set_all[i]  # label assigned to user
         rand_set = []
-        for label in rand_set_label:  # for each label assigned to _user, select one shard by random
-            # shards uidx and corresponding sample_list are removed after selection
+        for label in rand_set_label:  # for each label assigned to user, select one shard randomly
+            # selected shard (and corresponding samples) are removed after selection
             idx = np.random.choice(len(dict_dataset[label]),
                                    replace=False)  # why replace if doing only single randchoice?
-            rand_set.append(dict_dataset[label].pop(idx))  # append popped uidx (as it is selected)
-        dict_users[i] = np.concatenate(rand_set)  # store shard-to-_user as a dict
+            rand_set.append(dict_dataset[label].pop(idx))  # append popped idx (as it is selected)
+        dict_users[i] = np.concatenate(rand_set)  # store sample-to-user
 
-    # TODO: Reset new generated dataset checks
-    # test that the dataset is properly set up
-    # test = []
-    # for key, value in dict_users.items():  # for each _user, do checks
-    #     x = np.unique(torch.tensor(dataset.targets)[value])
-    #     assert(len(x)) <= shard_per_user  # no more that "shard_per_user" number of classes in each _user
-    #     test.append(value)
-    # test = np.concatenate(test)
-    # assert(len(test) == len(dataset))  # all data samples are used
-    # assert(len(set(list(test))) == len(dataset))  # no duplicates in idxs
-
-    return dict_users, rand_set_all  # return shard-to-_user dictionary, label-to=_user dictionary
+    return dict_users, rand_set_all  # return sample-to-user dictionary, label-to-user dictionary
 
 
-def organize_data_shard(args):  # TODO: add more datasets as needed here
-
-    dataset_tr, dataset_vl, dataset_te, dict_tr_train, dict_tr_valid, dict_te_test = fetch_data(args)
+def organize_data_shard(args):
+    # note that the data sample order (dict_tr_*) are pre-shuffled in fetch_data_w_rand_order
+    dataset_tr, dataset_vl, dataset_te, dict_tr_train, dict_tr_valid, dict_te_test = fetch_data_w_rand_order(args)
 
     # whether dataset is iid
     if args.iid:
         exit("IID distribution is not implemented.")
+        raise NotImplementedError
     else:
-        # create test set based on rand_set_all label-to-_user assignment
+        # create test set based on rand_set_all label-to-user assignment
         users_tr_train, rand_set_all = noniid(dict_tr_train, args.num_users, args.shard_per_user)
         users_tr_valid, rand_set_all = noniid(dict_tr_valid, args.num_users, args.shard_per_user,
                                               rand_set_all=rand_set_all)

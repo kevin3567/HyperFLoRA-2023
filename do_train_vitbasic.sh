@@ -1,0 +1,33 @@
+export CUDA_VISIBLE_DEVICES=0
+python p_train_vitbasic.py \
+--dataset \
+cifar100 \
+--num_classes \
+100 \
+--rounds \
+20000 \
+--tg_lr \
+0.1 \
+--num_users \
+100 \
+--shard_per_user \
+10 \
+--frac \
+0.1 \
+--local_ep \
+1 \
+--local_bs \
+50 \
+--seed \
+43 \
+--val_split \
+0.1 \
+--users_split_ratio \
+0.8 \
+--save_interval \
+200 \
+--val_interval \
+50 \
+--results_save \
+run_exp \
+

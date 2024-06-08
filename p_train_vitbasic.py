@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from config.options import args_parser
-from misc.data_fetch import fetch_data, DatasetSplit
+from misc.data_fetch import fetch_data_w_rand_order, DatasetSplit
 import os
 
 from config.hypparam_ViTBasic import create_architectures
@@ -71,17 +71,17 @@ def set_tgmodel_gradreq(model, w_frz_keys):
             param.requires_grad = True
 
 
-def do_evaluation(net_description,
-                  model_central,
-                  model_user_list,
-                  w_public_keys,
-                  w_private_keys,  # unused here
-                  w_frozen_keys,  # unused here
-                  dataset_eval,
-                  dict_users_eval,
-                  idxs_user_part,
-                  idxs_user_byst,
-                  args):
+def run_evaluation(net_description,
+                   model_central,
+                   model_user_list,
+                   w_public_keys,
+                   w_private_keys,  # unused here
+                   w_frozen_keys,  # unused here
+                   dataset_eval,
+                   dict_users_eval,
+                   idxs_user_part,
+                   idxs_user_byst,
+                   args):
     for idx in range(args.num_users):
         transfer_weights(weight_keys=w_public_keys,
                          src_model=model_central,
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     _results_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, '_results.csv')
 
     # LOAD DATASET
-    _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data(_args)
+    _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data_w_rand_order(_args)
     _data_info_path = os.path.join(_base_dir, 'dict_users.pkl')
     with open(_data_info_path, 'rb') as handle:
         _dict_users_train, _dict_users_valid, _dict_users_test = pickle.load(handle)
@@ -215,17 +215,17 @@ if __name__ == '__main__':
     print("Bystander Users (Num {}) Idx: {}".format(_byst_num_users, _idxs_user_byst))
 
     # TEST INIT MODEL
-    _ = do_evaluation(net_description="Initial Model",
-                      model_central=_net_central,
-                      model_user_list=_net_user_list,
-                      w_public_keys=_w_public_keys,
-                      w_private_keys=_w_private_keys,  # unused here
-                      w_frozen_keys=_w_frozen_keys,  # unused here
-                      dataset_eval=_dataset_test,
-                      dict_users_eval=_dict_users_test,
-                      idxs_user_part=_idxs_user_part,
-                      idxs_user_byst=_idxs_user_byst,
-                      args=_args)
+    _ = run_evaluation(net_description="Initial Model",
+                       model_central=_net_central,
+                       model_user_list=_net_user_list,
+                       w_public_keys=_w_public_keys,
+                       w_private_keys=_w_private_keys,  # unused here
+                       w_frozen_keys=_w_frozen_keys,  # unused here
+                       dataset_eval=_dataset_test,
+                       dict_users_eval=_dict_users_test,
+                       idxs_user_part=_idxs_user_part,
+                       idxs_user_byst=_idxs_user_byst,
+                       args=_args)
 
     # EXPERIMENT INITIALIZATION
     # define _results file and variable
@@ -243,14 +243,14 @@ if __name__ == '__main__':
         # setup
         for k in _w_central_keys:
             _w_central_accum[k] = torch.zeros_like(_w_central_accum[k])
-        local_loss_list = []
-        total_sample_ct = 0
+        _local_loss_list = []
+        _total_sample_ct = 0
 
         _idxs_users_sel = sample_users(_idxs_user_part, _args.frac)
         print("Round {}, _tg_lr_curr: {:.6f}, {}".format(_round, _tg_lr_curr, _idxs_users_sel))
 
         for _uidx in _idxs_users_sel:
-            w_local, loss, sample_ct = \
+            _w_local, _loss, _sample_ct = \
                 do_train(user_train_lr=_tg_lr_curr,
                          dataset_tr=_dataset_train,
                          sample_idxs_tr=_dict_users_train[_uidx],
@@ -260,38 +260,38 @@ if __name__ == '__main__':
                          w_private_keys=_w_private_keys,
                          w_frozen_keys=_w_frozen_keys,
                          args=_args)
-            local_loss_list.append(loss)
+            _local_loss_list.append(_loss)
 
-            total_sample_ct += sample_ct
-            for k in _w_public_keys:
-                _w_central_accum[k] += w_local[k] * sample_ct
+            _total_sample_ct += _sample_ct
+            for _k in _w_public_keys:
+                _w_central_accum[_k] += _w_local[_k] * _sample_ct
 
         # average the accumulated weights, then update central model
-        for k in _w_public_keys:
-            _w_central_accum[k] = torch.div(_w_central_accum[k], total_sample_ct)
+        for _k in _w_public_keys:
+            _w_central_accum[_k] = torch.div(_w_central_accum[_k], _total_sample_ct)
         _net_central.load_state_dict(_w_central_accum)
 
         # do _tg_lr_curr decay after each comm round, as is typical (moved from before update global weights for readability)
         _tg_lr_curr *= _args.tg_lr_decay
 
         # print loss
-        loss_avg = sum(local_loss_list) / len(local_loss_list)
-        _loss_train.append(loss_avg)
+        _loss_avg = sum(_local_loss_list) / len(_local_loss_list)
+        _loss_train.append(_loss_avg)
 
         # If all client have same number of val samples, then avg-local-acc == glob-acc.
         if (_round + 1) % _args.val_interval == 0:
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
-                do_evaluation(net_description="Trained on Epoch {}".format(_round),
-                              model_central=_net_central,
-                              model_user_list=_net_user_list,
-                              w_public_keys=_w_public_keys,
-                              w_private_keys=_w_private_keys,
-                              w_frozen_keys=_w_frozen_keys,
-                              dataset_eval=_dataset_valid,
-                              dict_users_eval=_dict_users_valid,
-                              idxs_user_part=_idxs_user_part,
-                              idxs_user_byst=_idxs_user_byst,
-                              args=_args)
+                run_evaluation(net_description="Trained on Epoch {}".format(_round),
+                               model_central=_net_central,
+                               model_user_list=_net_user_list,
+                               w_public_keys=_w_public_keys,
+                               w_private_keys=_w_private_keys,
+                               w_frozen_keys=_w_frozen_keys,
+                               dataset_eval=_dataset_valid,
+                               dict_users_eval=_dict_users_valid,
+                               idxs_user_part=_idxs_user_part,
+                               idxs_user_byst=_idxs_user_byst,
+                               args=_args)
 
             if _best_acc is None or _acc_val_loc_part_mean > _best_acc:  # find best based on participating users
                 _net_central_best = copy.deepcopy(_net_central)
@@ -299,22 +299,22 @@ if __name__ == '__main__':
                 _best_acc = _acc_val_loc_part_mean
                 _best_epoch = _round
 
-            _results.append(np.array([_round, loss_avg, _loss_val_loc_part_mean, _acc_val_loc_part_mean, _best_acc]))
-            final_results = np.array(_results)
-            final_results = pd.DataFrame(final_results,
-                                         columns=['round',
+            _results.append(np.array([_round, _loss_avg, _loss_val_loc_part_mean, _acc_val_loc_part_mean, _best_acc]))
+            _final_results = np.array(_results)
+            _final_results = pd.DataFrame(_final_results,
+                                          columns=['round',
                                                   'loss_avg_tr',
                                                   'loss_part_val',
                                                   'acc_part_val',
                                                   'best_part_acc_val'])
-            final_results.to_csv(_results_save_path, index=False)
+            _final_results.to_csv(_results_save_path, index=False)
 
         # save experiment state in set intervals
         if (_round + 1) % _args.save_interval == 0:
-            model_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, 'ckpt_{}.pt'.format(_round + 1))
-            torch.save(_net_central.state_dict(), model_save_path)
-            best_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, 'best_{}.pt'.format(_round + 1))
-            torch.save(_net_central_best.state_dict(), best_save_path)
+            _model_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, 'ckpt_{}.pt'.format(_round + 1))
+            torch.save(_net_central.state_dict(), _model_save_path)
+            _best_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, 'best_{}.pt'.format(_round + 1))
+            torch.save(_net_central_best.state_dict(), _best_save_path)
 
         _round_end = time.time()
         print("Round {} done. Time Taken: {}".format(_round, _round_end - _round_start))
@@ -327,17 +327,17 @@ if __name__ == '__main__':
                    "Best Model": (_net_central_best, _net_user_list_best)}
 
     for _net_desc, (_net_central_fin, _net_user_list_fin) in _ckpt_types.items():
-        _ = do_evaluation(net_description=_net_desc,
-                          model_central=_net_central_fin,
-                          model_user_list=_net_user_list_fin,
-                          w_public_keys=_w_public_keys,
-                          w_private_keys=_w_private_keys,  # unused here
-                          w_frozen_keys=_w_frozen_keys,  # unused here
-                          dataset_eval=_dataset_test,
-                          dict_users_eval=_dict_users_test,
-                          idxs_user_part=_idxs_user_part,
-                          idxs_user_byst=_idxs_user_byst,
-                          args=_args)
+        _ = run_evaluation(net_description=_net_desc,
+                           model_central=_net_central_fin,
+                           model_user_list=_net_user_list_fin,
+                           w_public_keys=_w_public_keys,
+                           w_private_keys=_w_private_keys,  # unused here
+                           w_frozen_keys=_w_frozen_keys,  # unused here
+                           dataset_eval=_dataset_test,
+                           dict_users_eval=_dict_users_test,
+                           idxs_user_part=_idxs_user_part,
+                           idxs_user_byst=_idxs_user_byst,
+                           args=_args)
 
-    end = time.time()
-    print("Done All. TIme Taken {}".format(end - _start))
+    _end = time.time()
+    print("Done All. TIme Taken {}".format(_end - _start))

@@ -59,7 +59,7 @@ def split_dataset(dataset, split_thresh):
     return a_dict, b_dict
 
 
-def fetch_data(args):
+def fetch_data_w_rand_order(args):
     if args.dataset == 'cifar10':
         dataset_tr = datasets.CIFAR10('data/cifar10', train=True, download=True, transform=trans_cifar10_train)
         dataset_vl = datasets.CIFAR10('data/cifar10', train=True, download=True, transform=trans_cifar10_test)
@@ -104,8 +104,8 @@ def fetch_data(args):
     else:
         exit("Dataset {} is not implemented".format(args.dataset))
 
-    # dataset_??: original raw dataset from download
-    # dict_??_*: sample_list-to-label mapping (label is key)
+    # dataset_*: original raw dataset from download
+    # dict_tr_*: sample_list-to-label mapping (label is key)
     return dataset_tr, dataset_vl, dataset_te, dict_tr_train, dict_tr_valid, dict_te_test
 
 

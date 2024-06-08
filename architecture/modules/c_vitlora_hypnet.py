@@ -73,7 +73,7 @@ class ViTLora_HypNet(ComponentAbstract):
         return [k.replace("/", ".") for k in self.tgweight_module_dict.keys()]
 
     def init_param(self):
-        print("Type {} has not implemented init_param".format(type(self)))
+        print("(Intended) Type {} has not implemented init_param".format(type(self)))
 
 
 class ViTLora_HypNet_Regressor(ModelAbstract):

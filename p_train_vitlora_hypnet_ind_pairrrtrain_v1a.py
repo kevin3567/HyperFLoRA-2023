@@ -21,7 +21,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from config.options import args_parser
-from misc.data_fetch import fetch_data, DatasetSplit
+from misc.data_fetch import fetch_data_w_rand_order, DatasetSplit
 from misc.user_local import LocalTrainer_HN, LocalTester_HN
 import os
 
@@ -74,15 +74,15 @@ def set_tgmodel_gradreq(tgmodel, hypmodel):
             assert False, "Key {} is not found in TargetModel".format(key_name)
 
 
-def do_evaluation(net_description,  # hyparch can be fed None to evaluate the loaded pretrained model
-                  hyparch,
-                  all_tgarch_list,
-                  all_userarch_list,
-                  dataset_eval,
-                  dict_users_eval,
-                  idxs_user_part,
-                  idxs_user_byst,
-                  args):
+def run_evaluation(net_description,  # hyparch can be fed None to evaluate the loaded pretrained model
+                   hyparch,
+                   all_tgarch_list,
+                   all_userarch_list,
+                   dataset_eval,
+                   dict_users_eval,
+                   idxs_user_part,
+                   idxs_user_byst,
+                   args):
     with torch.no_grad():
         if hyparch is not None:
             hyparch.eval()
@@ -210,12 +210,12 @@ def train_hypnet_paired(user_train_lr,
     w_tgmodel_fin = None  # make sure model actually undergoes training
     for ep in range(args.local_ep):  # alternated training keep trakc of comm cost
         for loc_uidx in range(len(localtrainer_list)):
-            w_tgmodel_fin, _ = localtrainer_list[loc_uidx].do_train(net=tgmodel_pair[loc_uidx],
-                                                                    lr=user_train_lr,
-                                                                    momentum=args.tg_momentum,
-                                                                    local_ep=1,
-                                                                    grad_clip=args.tg_g_clip,
-                                                                    device=args.device)
+            w_tgmodel_fin, *_ = localtrainer_list[loc_uidx].do_train(net=tgmodel_pair[loc_uidx],
+                                                                     lr=user_train_lr,
+                                                                     momentum=args.tg_momentum,
+                                                                     local_ep=1,
+                                                                     grad_clip=args.tg_g_clip,
+                                                                     device=args.device)
             transfer_weights(weight_keys=w_tgcomb_assignable_dict.keys(),
                              src_model=tgmodel_pair[loc_uidx],
                              tgt_model=tgmodel_pair[(loc_uidx + 1) % len(tgmodel_pair)])
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     results_save_path = os.path.join(base_dir, EXP_TYPE_STUB, 'results.csv')
 
     # LOAD DATASET
-    _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data(_args)
+    _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data_w_rand_order(_args)
     _data_info_path = os.path.join(base_dir, 'dict_users.pkl')
     # note that train and valid set should have no common indices. Test set is taken from a different partition.
     with open(_data_info_path, 'rb') as handle:
@@ -323,16 +323,16 @@ if __name__ == '__main__':
     # TEST PRETRAINED MODEL IN CONTEXT OF CURRENT PFL SCENARIO
     # TODO: create a model assessment function, as the code is repeated at the start and end.
     # set local _user models with initial hyperparameter
-    _ = do_evaluation(net_description="Initial Model",
-                      hyparch=None,
-                      all_tgarch_list=_all_tgarch_list,
-                      all_userarch_list=_all_userarch_list,
-                      dataset_eval=_dataset_test,
-                      dict_users_eval=_dict_users_test,
-                      idxs_user_part=_idxs_user_part,
-                      idxs_user_byst=_idxs_user_byst,
-                      args=_args,
-                      )
+    _ = run_evaluation(net_description="Initial Model",
+                       hyparch=None,
+                       all_tgarch_list=_all_tgarch_list,
+                       all_userarch_list=_all_userarch_list,
+                       dataset_eval=_dataset_test,
+                       dict_users_eval=_dict_users_test,
+                       idxs_user_part=_idxs_user_part,
+                       idxs_user_byst=_idxs_user_byst,
+                       args=_args,
+                       )
 
     # EXPERIMENT INITIALIZATION
     _results = []  # stores assessed results
@@ -416,15 +416,15 @@ if __name__ == '__main__':
         if (_round + 1) % _args.val_interval == 0:
             # copy weights of each target model weight to avoid potential disruption of training
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
-                do_evaluation(net_description="Trained on Epoch {}".format(_round),
-                              hyparch=_hyparch,
-                              all_tgarch_list=_all_tgarch_list,
-                              all_userarch_list=_all_userarch_list,
-                              dataset_eval=_dataset_valid,
-                              dict_users_eval=_dict_users_valid,
-                              idxs_user_part=_idxs_user_part,
-                              idxs_user_byst=_idxs_user_byst,
-                              args=_args)
+                run_evaluation(net_description="Trained on Epoch {}".format(_round),
+                               hyparch=_hyparch,
+                               all_tgarch_list=_all_tgarch_list,
+                               all_userarch_list=_all_userarch_list,
+                               dataset_eval=_dataset_valid,
+                               dict_users_eval=_dict_users_valid,
+                               idxs_user_part=_idxs_user_part,
+                               idxs_user_byst=_idxs_user_byst,
+                               args=_args)
 
             if _best_acc is None or _acc_val_loc_part_mean > _best_acc:  # checkpointing decided by part-val-acc
                 _best_hyparch = copy.deepcopy(_hyparch)
@@ -458,15 +458,15 @@ if __name__ == '__main__':
                    "Best Model": _best_hyparch}
 
     for _net_desc, _hyparch_fin in _ckpt_types.items():
-        _ = do_evaluation(net_description=_net_desc,
-                          hyparch=_hyparch_fin,
-                          all_tgarch_list=_all_tgarch_list,
-                          all_userarch_list=_all_userarch_list,
-                          dataset_eval=_dataset_test,
-                          dict_users_eval=_dict_users_test,
-                          idxs_user_part=_idxs_user_part,
-                          idxs_user_byst=_idxs_user_byst,
-                          args=_args)
+        _ = run_evaluation(net_description=_net_desc,
+                           hyparch=_hyparch_fin,
+                           all_tgarch_list=_all_tgarch_list,
+                           all_userarch_list=_all_userarch_list,
+                           dataset_eval=_dataset_test,
+                           dict_users_eval=_dict_users_test,
+                           idxs_user_part=_idxs_user_part,
+                           idxs_user_byst=_idxs_user_byst,
+                           args=_args)
 
     _end = time.time()
     print("Done All. TIme Taken {}".format(_end - _start))
