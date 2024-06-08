@@ -148,12 +148,12 @@ def train_hypnet_standard(user_train_lr, dataset_tr, sample_idxs_tr,
     tgmodel.train()
     w_tgmodel_init = copy.deepcopy(tgmodel.state_dict())  # Fix the initial weights
 
-    w_tgmodel_fin, _ = local.do_train(net=tgmodel.to(args.device),
-                                      lr=user_train_lr,
-                                      momentum=args.tg_momentum,
-                                      local_ep=args.local_ep,
-                                      grad_clip=args.tg_g_clip,
-                                      device=args.device)
+    w_tgmodel_fin, *_ = local.do_train(net=tgmodel.to(args.device),
+                                       lr=user_train_lr,
+                                       momentum=args.tg_momentum,
+                                       local_ep=args.local_ep,
+                                       grad_clip=args.tg_g_clip,
+                                       device=args.device)
 
     # compute the gradient between tgarch weights (where assignable by hyperarch)
     # hyparch generates w_tgmodel_init values, and learns to approximate w_tgmodel_fin

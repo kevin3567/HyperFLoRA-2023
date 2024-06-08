@@ -18,6 +18,7 @@ class LocalTrainer_HN(object):
         net.train()
         optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum)
         local_epoch_loss = []
+        sample_ct = 0
 
         for local_iter in range(local_ep):
             batch_loss = []
@@ -40,11 +41,12 @@ class LocalTrainer_HN(object):
                 optimizer.step()
                 # record keeping
                 batch_loss.append(local_loss.item())
+                sample_ct += images.size(0)
             # compute average loss for every iter
             local_epoch_loss.append(sum(batch_loss) / len(batch_loss))
         w_net = net.state_dict()
         avg_loss = sum(local_epoch_loss) / len(local_epoch_loss)
-        return w_net, avg_loss
+        return w_net, avg_loss, sample_ct
 
 
 class LocalTester_HN(object):

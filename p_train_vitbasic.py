@@ -38,48 +38,6 @@ from misc.helper_functs import (sample_users,
                                 eval_all_users)
 
 
-# TODO: Combine this with LocalUpdate_HN
-class LocalUpdate_Adaptor(object):
-    def __init__(self, args, dataset=None, idxs=None):
-        self.args = args
-        self.loss_func = torch.nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
-
-    def train(self, net, lr=0.1, momentum=0.5):
-        net.train()
-        # train and update
-
-        # create new optimizer in client whenever a new training round starts
-        # use SGD optimizer (as it is stateless, and allows for change of _tg_lr_curr)
-        optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=momentum)
-
-        epoch_loss = []
-        sample_ct = 0
-        local_eps = self.args.local_ep
-        for iter in range(local_eps):
-            batch_loss = []
-
-            for batch_idx, (images, labels) in enumerate(self.ldr_train):
-                images, labels = images.to(self.args.device), labels.to(self.args.device)
-                optimizer.zero_grad()
-                log_probs = net(images)
-                # this is an experimental loss
-                loss = self.loss_func(log_probs, labels)
-                if torch.isnan(loss):
-                    print("Loss is nan. Should check if there is an issue.")
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(net.parameters(), 1)
-                optimizer.step()
-                # get statistics on training step
-                sample_ct += images.size(0)
-                batch_loss.append(loss.item())
-            epoch_loss.append(sum(batch_loss) / len(batch_loss))
-
-        return net.state_dict(), \
-               sum(epoch_loss) / len(epoch_loss), \
-               sample_ct
-
-
 # define the weights that should be frozen, public, and private.
 def set_weight_mode(model, w_all_keys):  # this only produces lists of keys, it does not set or modify anything.
     w_pr_keys = []
@@ -165,19 +123,20 @@ def do_train(user_train_lr, dataset_tr, sample_idxs_tr,
              w_public_keys, w_private_keys, w_frozen_keys,
              args):
 
-    local = LocalUpdate_Adaptor(args=args,
-                                dataset=dataset_tr,
-                                idxs=sample_idxs_tr)
-
+    local = LocalTrainer_HN(dataset_tr=dataset_tr,
+                            idxs_tr=sample_idxs_tr,
+                            local_bs=args.local_bs)
     transfer_weights(weight_keys=w_public_keys,
                      src_model=net_global,
                      tgt_model=net_user)
     net_user.train()
 
-    w_local, loss, sample_ct = local.train(net=net_user.to(args.device),
-                                           lr=user_train_lr,
-                                           momentum=args.tg_momentum)
-
+    w_local, loss, sample_ct = local.do_train(net=net_user.to(args.device),
+                                              lr=user_train_lr,
+                                              momentum=args.tg_momentum,
+                                              local_ep=args.local_ep,
+                                              grad_clip=args.tg_g_clip,
+                                              device=args.device)
     return w_local, loss, sample_ct
 
 

@@ -8,14 +8,12 @@ from config.options import args_parser
 from misc.data_fetch import fetch_data
 
 
+# Warning: in this implementation, it is possible that certain users can acquire mono-label shards (all samples
+# belong to the same class).
+# To avoid the probability of this happening, increase the shard_per_user and try different seeds. To ensure no
+# mono-label users exist, ensure that the [UNRESOLVED] list printout is empty, before using the organized dataset
+# for subsequent training.
 def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
-    """
-    Sample non-I.I.D client data from MNIST dataset
-    :param dict_dataset:
-    :param num_users:
-    :return:
-    """
-
     dict_users = {i: np.array([], dtype='int64') for i in range(num_users)}
 
     # SAMPLE-TO-SHARD PROCESSING
@@ -39,8 +37,8 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
         rand_set_all = list(range(num_classes)) * shard_per_class  # repeat [1..num_classes] tiling by shard_per_classes
         np.random.shuffle(rand_set_all)
         rand_set_all = np.array(rand_set_all).reshape((num_users, -1))  # random assignment of shard to _user
-        # TODO: Resolve the issue of dummy users due to single-class shards (must solve before publication)
-        print("[UNRESOLVED] Dummy Users With Iso-Label Shards: {}".format(
+        # UNRESOLVED
+        print("[UNRESOLVED] Dummy Users With Mono-Label Shards: {}".format(
             [x for x in rand_set_all if np.all(x == x[0])]),
             flush=True)
 
@@ -70,7 +68,7 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
     return dict_users, rand_set_all  # return shard-to-_user dictionary, label-to=_user dictionary
 
 
-def organize_data_mcmahan(args):  # TODO: add more datasets as needed here
+def organize_data_shard(args):  # TODO: add more datasets as needed here
 
     dataset_tr, dataset_vl, dataset_te, dict_tr_train, dict_tr_valid, dict_te_test = fetch_data(args)
 
@@ -115,7 +113,7 @@ if __name__ == '__main__':
     # load dataset
     dataset_tr, dataset_vl, dataset_te, \
     dict_users_train, dict_users_valid, dict_users_test = \
-        organize_data_mcmahan(args)
+        organize_data_shard(args)
     dict_save_path = os.path.join(base_dir, 'dict_users.pkl')
     with open(dict_save_path, 'wb') as handle:
         pickle.dump((dict_users_train, dict_users_valid, dict_users_test), handle)
