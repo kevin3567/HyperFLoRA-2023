@@ -7,12 +7,6 @@ import re
 
 from architecture.modules.a_abstracts import ModelAbstract, ComponentAbstract
 
-# TODO generalize the adapt to lora_hypnet with any network (long term goal)
-# TODO: functionalize the k.replace(",","/") to convert names
-# TODO: functionalize the k.replace("/",",") to revert names
-
-# tgweights: TargetModel weights
-# hpweights: HyperModel weights
 
 def collect_tgweights(bidx, _inelement_tgweights):
     return OrderedDict({k: v[bidx] for k, v in _inelement_tgweights.items()})
@@ -24,10 +18,10 @@ class ViTLora_HypNet(ComponentAbstract):
             tgmodel,
             embedding_dim,
             hidden_dim,
-            n_hidden,):
+            n_hidden):
         super().__init__()
 
-        # initialize hypnet parameters (simple MLP)
+        # hypnet encoder
         _layers = [nn.Linear(embedding_dim, hidden_dim)]  # create the embedding dimension
         for _ in range(n_hidden):
             _layers.append(nn.ReLU())
@@ -35,7 +29,7 @@ class ViTLora_HypNet(ComponentAbstract):
         self.mlp = nn.Sequential(*_layers)
         del _layers
 
-        # get adaptor weights here (should also account for bias)
+        # hypnet tgweight predictors
         self.tgweight_size_dict = {}
         self.tgweight_module_dict = {}
         for k, v in tgmodel.state_dict().items():
@@ -58,10 +52,6 @@ class ViTLora_HypNet(ComponentAbstract):
 
     def batchify_output(self, features):
         batch_size = features.size(0)
-        # TODO: Declare these the weight names at the __init__ function.
-        # TODO: Link the parameter name to the target_weight generation modules.
-        # TODO: Dynamic declaration of target_weight generation modules based on target model architecture.
-
         _inelement_tgweights = OrderedDict({
             k.replace("/", "."): v(features).view(-1, *self.tgweight_size_dict[k]) for k, v in
             self.tgweight_module_dict.items()
@@ -73,7 +63,8 @@ class ViTLora_HypNet(ComponentAbstract):
         return [k.replace("/", ".") for k in self.tgweight_module_dict.keys()]
 
     def init_param(self):
-        print("(Intended) Type {} has not implemented init_param".format(type(self)))
+        # print("(Intended) Type {} init_param does nothing".format(type(self)))
+        pass
 
 
 class ViTLora_HypNet_Regressor(ModelAbstract):
@@ -103,7 +94,7 @@ if __name__ == "__main__":
     from architecture.modules.c_vitlora import ViTLora_Classifier
     from architecture.modules.c_usertoken import UserToken_Generator
 
-    vitlora_hypparam = {  # cifar 10 is 32 * 32
+    vitlora_hypparam = {
         "name": "vitlora",
         "img_size": 32,
         "patch_size": 4,
@@ -115,6 +106,7 @@ if __name__ == "__main__":
         "mlp_ratio": 4.,
         "rank_size": 1,
         "qkv_bias": True,
+        "fin_adapt": True,
         "p": 0.,
         "attn_p": 0.,
     }
@@ -147,7 +139,7 @@ if __name__ == "__main__":
         w_tgmodel_form[k] = v
     tgmodel.load_state_dict(w_tgmodel_form)
     tgmodel_weights_2 = hypmodel(user_tokens_2)
-    print("Compare tgmodel_weights_1[1] and tgmodel_weights_2[4] by evaluation")
+    # print("Compare tgmodel_weights_1[1] and tgmodel_weights_2[4] by evaluation")
     # [torch.allclose(a[1], b[1], atol=0.0000001) for a, b in
     #  zip(tgmodel_weights_1[1].items(), tgmodel_weights_2[4].items())]
     tgmodel_assignable_keys = hypmodel.get_tgweight_keys()

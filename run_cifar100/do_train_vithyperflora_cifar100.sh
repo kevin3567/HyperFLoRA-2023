@@ -1,5 +1,5 @@
 export CUDA_VISIBLE_DEVICES=0
-python p_train_vitlora_hypnet_ind_pairrrtrain_v1a.py \
+python p_train_vithyperflora.py \
 --dataset \
 cifar100 \
 --num_classes \

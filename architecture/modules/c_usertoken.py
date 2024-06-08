@@ -2,9 +2,6 @@ import torch
 import torch.nn as nn
 
 from architecture.modules.a_abstracts import ComponentAbstract, ModelAbstract
-"""
-Universal dummy component for checking module functionality. Dimension-invariant feedforward.
-"""
 
 
 class UserTokenNet(ComponentAbstract):
@@ -25,9 +22,6 @@ class UserTokenNet(ComponentAbstract):
         assert self.token.size() == token_tensor.size()
         device = self.token.device
         self.token.data = token_tensor.data.to(device)
-        # grad_mode = self.token.requires_grad
-        # self.token = nn.Parameter(token_tensor)  # lazy, should use torch.utils.init function by convention
-        # self._set_grad_mode(grad_mode)
 
     def _set_grad_mode(self, mode):
         self.token.requires_grad = mode
@@ -66,4 +60,3 @@ if __name__ == "__main__":
     token_vec_frozen = generator()  # double check if token_vec is actually frozen
 
     print("Done")
-

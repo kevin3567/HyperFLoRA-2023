@@ -1,15 +1,3 @@
-# GENERAL SHORTHAND:
-# There are three type of models: _user (_user), hyper (hyp), target (tg).
-# Note that _user model is not trainable, as it only generates a fixed client representation here.
-# The actual client model is the target model.
-# There are three type of dataset: train, valid(ation), test
-# There are two types of users: participant (does local training) and bystander (does no training)
-# The term "local" refers to object/process within a trainer
-# The term "pseudo" refers to object/process conducted within a pseudo-client (formed by pairing two users)
-# all variable names in main starts with "_" to prevent accidental shadowing of variable name
-# once training loop starts, all users before use must undergo hypernetwork weight assignment before use
-# This is an FL simulation, thus _user and servers are not clearly demarcated.
-
 import copy
 import time
 import pickle
@@ -51,11 +39,11 @@ def create_users(num_users, userrep_list, usermodel, tgmodel):
     tgmodel_list = []
     for uidx in range(num_users):
         # copy tgarch (with pretrained weights)
-        tgmodel_list.append(copy.deepcopy(tgmodel))  # _user model
+        tgmodel_list.append(copy.deepcopy(tgmodel))  # user model
         # copy userarch (with appropriate initialization)
         local_usermodel = copy.deepcopy(usermodel)
-        local_usermodel.assign_param(userrep_list[uidx])  # assigned weights should be frozen, debug and check!
-        usermodel_list.append(local_usermodel)  # _user representation (a model that returns a fixed rep vector)
+        local_usermodel.assign_param(userrep_list[uidx])  # assigned weights should be frozen
+        usermodel_list.append(local_usermodel)  # user representation (a model that returns a fixed rep vector)
     return usermodel_list, tgmodel_list
 
 
@@ -272,7 +260,7 @@ if __name__ == '__main__':
     with open(_data_info_path, 'rb') as handle:
         _dict_users_train, _dict_users_valid, _dict_users_test = pickle.load(handle)
     assert all([len(v) > 0 for k, v in _dict_users_valid.items()]), \
-        "(Assertion) Must have validation set for each _user."
+        "(Assertion) Must have validation set for each user."
     _class2samples_train = get_class2sample_dict(dataset=_dataset_train, dict_users=_dict_users_train)
     _class2samples_valid = get_class2sample_dict(dataset=_dataset_valid, dict_users=_dict_users_valid)
 
@@ -305,7 +293,7 @@ if __name__ == '__main__':
     check_model_gradreq(model=_hyparch, modelname="HyperArch (hyparch)")
 
     # CREATE USER MODEL (VECTOR REP) AND TARGET MODEL FOR EACH USER
-    # iterate through the validation set (not test set) of each _user to obtain the representation vector
+    # iterate through the validation set (not test set) of each user to obtain the representation vector
     _user_label_indicators = {k: get_classes2indicator([_dataset_valid[i][1] for i in v], _args.num_classes) for
                               k, v in _dict_users_valid.items()}
     _all_userarch_list, _all_tgarch_list = create_users(num_users=_args.num_users,
@@ -385,7 +373,7 @@ if __name__ == '__main__':
                 class2samples_train_pair=[_class2samples_train[_uidx] for _uidx in _userpair_idx],
                 args=_args)
 
-            # train psuedo _user (client pair)
+            # train psuedo user (client pair)
             _hypmodel_grad = \
                 train_hypnet_paired(user_train_lr=_tg_lr_curr,
                                     dataset_tr=_dataset_train,

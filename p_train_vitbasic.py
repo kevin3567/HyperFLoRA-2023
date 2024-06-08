@@ -87,7 +87,7 @@ def run_evaluation(net_description,
                          src_model=model_central,
                          tgt_model=model_user_list[idx])
         model_user_list[idx].eval()
-    # compute and aggregate _user accuracy using all users through local model on local test samples
+    # compute and aggregate user accuracy using all users through local model on local test samples
     with torch.no_grad():
         acc_eval_loc_list, loss_eval_loc_list = \
             eval_all_users(net_list=model_user_list,
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     with open(_data_info_path, 'rb') as handle:
         _dict_users_train, _dict_users_valid, _dict_users_test = pickle.load(handle)
     assert all([len(v) > 0 for k, v in _dict_users_valid.items()]), \
-        "(Assertion) Must have validation set for each _user."
+        "(Assertion) Must have validation set for each user."
 
     # GET MODEL INFO
     # define parameter type
@@ -202,12 +202,12 @@ if __name__ == '__main__':
     set_tgmodel_gradreq(model=_net_central, w_frz_keys=_w_frozen_keys)
     check_model_gradreq(model=_net_central, modelname="Net Central")
 
-    # copy _net_central to each _user
+    # copy _net_central to each user
     _net_user_list = []
-    for _user in range(_args.num_users):  # for each _user, copy the loaded checkpoint
+    for _user in range(_args.num_users):  # for each user, copy the loaded checkpoint
         _net_user_list.append(copy.deepcopy(_net_central))
 
-    # defien participants and bystander users
+    # define participants and bystander users
     # first X users are participant, the remaining latter are bystander
     (_idxs_user_part, _part_num_users), (_idxs_user_byst, _byst_num_users) = \
         split_users(num_users=_args.num_users, split_ratio=_args.users_split_ratio)
@@ -219,8 +219,8 @@ if __name__ == '__main__':
                        model_central=_net_central,
                        model_user_list=_net_user_list,
                        w_public_keys=_w_public_keys,
-                       w_private_keys=_w_private_keys,  # unused here
-                       w_frozen_keys=_w_frozen_keys,  # unused here
+                       w_private_keys=_w_private_keys,
+                       w_frozen_keys=_w_frozen_keys,
                        dataset_eval=_dataset_test,
                        dict_users_eval=_dict_users_test,
                        idxs_user_part=_idxs_user_part,
@@ -247,7 +247,8 @@ if __name__ == '__main__':
         _total_sample_ct = 0
 
         _idxs_users_sel = sample_users(_idxs_user_part, _args.frac)
-        print("Round {}, _tg_lr_curr: {:.6f}, {}".format(_round, _tg_lr_curr, _idxs_users_sel))
+        if _args.do_debug:
+            print("Round {}, _tg_lr_curr: {:.6f}, {}".format(_round, _tg_lr_curr, _idxs_users_sel))
 
         for _uidx in _idxs_users_sel:
             _w_local, _loss, _sample_ct = \
@@ -317,7 +318,8 @@ if __name__ == '__main__':
             torch.save(_net_central_best.state_dict(), _best_save_path)
 
         _round_end = time.time()
-        print("Round {} done. Time Taken: {}".format(_round, _round_end - _round_start))
+        if _args.do_debug:
+            print("Round {} done. Time Taken: {}".format(_round, _round_end - _round_start))
 
     print('Best model, Iteration: {}, Best Average Participant Valid Accuracy: {}'.format(_best_epoch, _best_acc))
 
@@ -331,8 +333,8 @@ if __name__ == '__main__':
                            model_central=_net_central_fin,
                            model_user_list=_net_user_list_fin,
                            w_public_keys=_w_public_keys,
-                           w_private_keys=_w_private_keys,  # unused here
-                           w_frozen_keys=_w_frozen_keys,  # unused here
+                           w_private_keys=_w_private_keys,
+                           w_frozen_keys=_w_frozen_keys,
                            dataset_eval=_dataset_test,
                            dict_users_eval=_dict_users_test,
                            idxs_user_part=_idxs_user_part,

@@ -30,4 +30,3 @@ cifar100 \
 50 \
 --results_save \
 run_exp \
-

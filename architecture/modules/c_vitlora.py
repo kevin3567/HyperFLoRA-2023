@@ -15,14 +15,13 @@ def get_xavier_std(weight, gain=1.):
     return xavier_std
 
 
-class PatchEmbed(ComponentAbstract):  # unit component
+class PatchEmbed(ComponentAbstract):
     # === Parameters ===
     # img_siz : int
-    # pathc_size : int
+    # patch_size : int
     # in_chans : int
     # embed_dim : int
-    # === Attributes ===
-    # n_patches : int
+
     def __init__(self, img_size, patch_size, in_chans, embed_dim):
         super().__init__()
         self.img_size = img_size
@@ -39,8 +38,7 @@ class PatchEmbed(ComponentAbstract):  # unit component
     def forward(self, x):
         # === Parameters ===
         # x: torch.Tensor()
-        # === Returns ===
-        # torch.Tensor
+
         x = self.proj(x)
         x = x.flatten(2)
         x = x.transpose(1, 2)
@@ -51,19 +49,14 @@ class PatchEmbed(ComponentAbstract):  # unit component
         nn.init.normal_(self.proj.bias, std=get_xavier_std(self.proj.weight))
 
 
-class AttentionLora(ComponentAbstract):  # unit component
-    """
+class AttentionLora(ComponentAbstract):
     # === Parameters ===
     # dim : int
     # n_heads: bool
+    # rank_size: int
     # qkv_bias : bool
     # attn_p : float
     # proj_p: float
-    # === Attributes ===
-    # scale : float
-    # qkv : nn.Linear
-    # attn_drop, proj_drop : nn.Dropout
-    """
 
     def __init__(self, dim, n_heads, rank_size, qkv_bias=True, attn_p=0., proj_p=0.):
         super().__init__()
@@ -72,7 +65,7 @@ class AttentionLora(ComponentAbstract):  # unit component
         self.head_dim = dim // n_heads
         self.scale = self.head_dim ** -0.5
 
-        # Unconventional joint weighting of qkv, but should work.
+        # Jointly process qkv
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)  # 3 is the qkv (concatencated)
         self.attn_drop = nn.Dropout(attn_p)
         self.proj = nn.Linear(dim, dim)
@@ -86,8 +79,7 @@ class AttentionLora(ComponentAbstract):  # unit component
     def forward(self, x):
         # === Parameters ===
         # x : torch.Tensor
-        # ===Returns ===
-        # torch.Tensor
+
         n_samples, n_tokens, dim = x.shape
         if dim != self.dim:
             raise ValueError
@@ -112,7 +104,7 @@ class AttentionLora(ComponentAbstract):  # unit component
         weighted_avg = weighted_avg.transpose(1, 2)
         weighted_avg = weighted_avg.flatten(2)
 
-        x = self.proj(weighted_avg) + self.fco_adaptor(x)
+        x = self.proj(weighted_avg) + self.fco_adaptor(weighted_avg)
         x = self.proj_drop(x)
         return x
 
@@ -128,17 +120,12 @@ class AttentionLora(ComponentAbstract):  # unit component
         self.fco_adaptor.init_param()
 
 
-class MLP(ComponentAbstract):  # unit component
+class MLP(ComponentAbstract):
     # === Parameters ===
     # in_features : int
     # hidden_features : int
     # out_features : int
     # p : float
-    # === Attribute ===
-    # fc : nn.Linear
-    # act : nn.GELU
-    # fc2 : nn.Linear
-    # drop : nn.Dropout
 
     def __init__(self, in_features, hidden_features, out_features, p=0.):
         super().__init__()
@@ -150,7 +137,7 @@ class MLP(ComponentAbstract):  # unit component
     def forward(self, x):
         # === Parameters ===
         # x : torch.Tensor
-        # === Returns ===
+
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
@@ -165,20 +152,14 @@ class MLP(ComponentAbstract):  # unit component
         nn.init.normal_(self.fc2.bias, std=get_xavier_std(self.fc2.weight))
 
 
-class LoraBlock(ComponentAbstract):  # composite component
-    """
-    === Parameters ===
-    dim : int
-    n_heads : int
-    mlp_ratio : float
-    qkv_bias : bool
-    p, attn_p: float
-
-    === Attributes
-    norm1, norm2: LayerNorm
-    attn: AttentionLora
-    mlp: MLP
-    """
+class LoraBlock(ComponentAbstract):
+    # === Parameters ===
+    # dim : int
+    # n_heads : int
+    # mlp_ratio : float
+    # rank_size: int
+    # qkv_bias : bool
+    # p, attn_p: float
 
     def __init__(self, dim, n_heads, mlp_ratio, rank_size, qkv_bias=True, p=0., attn_p=0.):
         super().__init__()
@@ -197,12 +178,8 @@ class LoraBlock(ComponentAbstract):  # composite component
             p=p)
 
     def forward(self, x):
-        """
-        :parameter:
-        x : torch.Tensor
-        :return:
-        torch.Tensor
-        """
+        # === Parameters ===
+        # x : torch.Tensor
         x = x + self.attn(self.norm1(x))
         x = x + self.mlp(self.norm2(x))
         return x
@@ -218,26 +195,19 @@ class LoraBlock(ComponentAbstract):  # composite component
 
 
 class ViTLora(ComponentAbstract):
-    """
-    :parameters:
-    img_size : int
-    patch_size : int
-    in_chans : int
-    n_classes : int
-    embed_dim : int
-    depth : int
-    n_heads : int
-    mlp_ratio : float
-    qkv_bias : bool
-    p, attn_p : float
-    :attributes:
-    patch_embed : PatchEmbed
-    cls_token : nn.Parameter
-    pos_emb : nn.Parameter
-    pos_drop : nn.Dropout
-    blocks : nn.ModuleList
-    norm : nn.LayerNorm
-    """
+    # === Parameters ===
+    # img_size : int
+    # patch_size : int
+    # in_chans : int
+    # n_classes : int
+    # embed_dim : int
+    # depth : int
+    # n_heads : int
+    # mlp_ratio : float
+    # rank_size: int
+    # qkv_bias : bool
+    # fin_adapt: bool
+    # p, attn_p : float
 
     def __init__(self,
                  img_size,
@@ -274,7 +244,7 @@ class ViTLora(ComponentAbstract):
             embed_dim=embed_dim,
         )
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(
+        self.pos_embed = nn.Parameter(  # positional embedding is learned in this implementation
             torch.randn(1,
                         1 + self.patch_embed.n_patches,
                         embed_dim))
@@ -298,12 +268,9 @@ class ViTLora(ComponentAbstract):
             self.fcf_adaptor = adaptor.Adaptor(embed_dim, n_output, rank_size, bias=False)
 
     def forward(self, x):
-        """
-        :parameter:
-        x : torch.Tensor
-        :return:
-        logits
-        """
+        # === Parameters ===
+        # x : torch.Tensor
+
         n_samples = x.shape[0]
         x = self.patch_embed(x)
 

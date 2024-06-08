@@ -12,10 +12,10 @@ class InitializableAbstract(nn.Module):
         print("Type {} has not implemented init_param".format(type(self)))
         raise NotImplementedError
 
-# highest level, can have functions interfacing with environment
-class ModelAbstract(nn.Module):
+
+class ModelAbstract(nn.Module):  # These don't do anything right now.
     pass
 
-# lower level, can only have: __init__, forward, and init_param (and sub-functions supporting these implementation)
-class ComponentAbstract(nn.Module):
+
+class ComponentAbstract(nn.Module):  # These don't do anything right now.
     pass
