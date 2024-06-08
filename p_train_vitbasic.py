@@ -171,7 +171,7 @@ if __name__ == '__main__':
     EXP_TYPE_STUB += '_users_split_ratio_{}'.format(_args.users_split_ratio)
     if not os.path.exists(os.path.join(_base_dir, EXP_TYPE_STUB)):
         os.makedirs(os.path.join(_base_dir, EXP_TYPE_STUB), exist_ok=True)
-    _results_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, '_results.csv')
+    _results_save_path = os.path.join(_base_dir, EXP_TYPE_STUB, 'results.csv')
 
     # LOAD DATASET
     _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data_w_rand_order(_args)
