@@ -27,7 +27,7 @@ from misc.helper_functs import (get_classes2indicator,
                                 eval_all_users,
                                 process_result)
 
-EXP_TYPE_STUB = "train_vitlora_hypnetswap_ind_halfjoin_v1"
+EXP_TYPE_STUB = "train_vithyperflora"
 # True: for investigation, reproducibility is more important
 # False: for data collection, speed is more important
 torch.backends.cudnn.deterministic = True
