@@ -2,7 +2,7 @@ This is the code for the paper HyperFLoRA: Federated Learning with
 Instantaneous Personalization (https://epubs.siam.org/doi/10.1137/1.
 9781611978032.94)
 
-For cifar10 experiment:
+For cifar10 experiment (in order):
 - to generate data partition:
     `nohup bash run_cifar10/do_create_dataset_cifar10.sh > lcheck.log`
 - to pretrain initial model:
@@ -10,7 +10,7 @@ For cifar10 experiment:
 - to do hyperflora training:
     `nohup bash run_cifar10/do_train_vithyperflora_cifar10.sh > lcheck.log`
 
-For cifar100 experiment:
+For cifar100 experiment (in order):
 - to generate data partition:
     `nohup bash run_cifar100/do_create_dataset_cifar100.sh > lcheck.log`
 - to pretrain initial model:
