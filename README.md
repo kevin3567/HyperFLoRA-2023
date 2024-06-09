@@ -19,7 +19,7 @@ For cifar100 experiment:
     `nohup bash run_cifar100/do_train_vithyperflora_cifar100.sh > lcheck.log`
 
 Note that:
-- When running p_create_dataset.py, it is possible (unlikely) that certain 
+- When running `p_create_dataset.py`, it is possible (unlikely) that certain 
   users can acquire mono-label shards (all samples in the user have the same 
   label). To avoid this, make sure that the following printout is observed: 
   `[UNRESOLVED] Dummy Users With Mono-Label Shards: []` (the list should be 
@@ -34,7 +34,10 @@ Note that:
   so their sample indices should be disjoint. Test set is drawn from a 
   separate set.
 - There are two types of users: participant (does local training) and 
-  bystander (does no training).
+  bystander (does no training). Designation follows that the first 80% 
+  (adjustable) of users are participants, and the latter are bystander. This 
+  is for consistency between experiments. Dataset alloted to each user is 
+  determined by `p_create_dataset.py`, but should all be disjoint.
 - The term "pseudo" refers to object/process conducted within a 
   pseudo-client (formed by pairing two users, and alternating LoRA training 
   between them)
