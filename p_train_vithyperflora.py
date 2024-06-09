@@ -98,9 +98,9 @@ def run_evaluation(net_description,  # hyparch can be fed None to evaluate the l
                            idxs_part=idxs_user_part,
                            idxs_byst=idxs_user_byst)
         print("Model with {}, "
-              "Average Participant Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
-              "Average Bystander Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
-              "Average All Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
+              "Average Participant Eval Accuracy(StdDev)/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
+              "Average Bystander Eval Accuracy(StdDev)/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
+              "Average All Eval Accuracy(StdDev)/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
             net_description,
             acc_eval_loc_part_mean, acc_eval_loc_part_std, loss_eval_loc_part_mean,
             acc_eval_loc_byst_mean, acc_eval_loc_byst_std, loss_eval_loc_byst_mean,
