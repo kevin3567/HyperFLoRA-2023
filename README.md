@@ -8,8 +8,8 @@ For cifar10 experiment (in order):
 - to pretrain initial model:
     `nohup bash run_cifar10/do_train_vitbasic_cifar10.sh > train_basic.log &`
 - to do hyperflora training:
-    `nohup bash run_cifar10/do_train_vithyperflora_cifar10.sh > train_hyper.
-  log &`
+    `nohup bash run_cifar10/do_train_vithyperflora_cifar10.sh > 
+  train_hyper.log &`
 
 For cifar100 experiment (in order):
 - to generate data partition:
