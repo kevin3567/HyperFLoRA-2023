@@ -4,19 +4,19 @@ Instantaneous Personalization (https://epubs.siam.org/doi/10.1137/1.
 
 For cifar10 experiment (in order):
 - to generate data partition:
-    `nohup bash run_cifar10/do_create_dataset_cifar10.sh > lcheck.log`
+    `nohup bash run_cifar10/do_create_dataset_cifar10.sh > data_create.log`
 - to pretrain initial model:
-    `nohup bash run_cifar10/do_train_vitbasic_cifar10.sh > lcheck.log`
+    `nohup bash run_cifar10/do_train_vitbasic_cifar10.sh > train_basic.log`
 - to do hyperflora training:
-    `nohup bash run_cifar10/do_train_vithyperflora_cifar10.sh > lcheck.log`
+    `nohup bash run_cifar10/do_train_vithyperflora_cifar10.sh > train_hyper.log`
 
 For cifar100 experiment (in order):
 - to generate data partition:
-    `nohup bash run_cifar100/do_create_dataset_cifar100.sh > lcheck.log`
+    `nohup bash run_cifar100/do_create_dataset_cifar100.sh > data_create.log`
 - to pretrain initial model:
-    `nohup bash run_cifar100/do_train_vitbasic_cifar100.sh > lcheck.log`
+    `nohup bash run_cifar100/do_train_vitbasic_cifar100.sh > train_basic.log`
 - to do hyperflora training:
-    `nohup bash run_cifar100/do_train_vithyperflora_cifar100.sh > lcheck.log`
+    `nohup bash run_cifar100/do_train_vithyperflora_cifar100.sh > train_hyper.log`
 
 Note that:
 - When running `p_create_dataset.py`, it is possible (unlikely) that certain 
