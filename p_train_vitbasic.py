@@ -106,7 +106,7 @@ def run_evaluation(net_description,
                            idxs_byst=idxs_user_byst)
         print("Model with {}, "
               "Average Participant Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
-              "Average Delayed Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
+              "Average Bystander Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
               "Average All Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
             net_description,
             acc_eval_loc_part_mean, acc_eval_loc_part_std, loss_eval_loc_part_mean,
