@@ -22,7 +22,7 @@ from config.hypparam_ViTBasic import create_architectures
 
 EXP_TYPE_STUB = "train_vitbasic"
 # True: for investigation, reproducibility is more important
-# False: for data collection, speed is more important
+# False: for result collection, speed is more important
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
