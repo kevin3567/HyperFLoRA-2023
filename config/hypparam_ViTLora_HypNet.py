@@ -26,12 +26,11 @@ vitlora_hypparam = {  # cifar is 32 * 32
     "attn_p": 0.,
 }
 
-vitlora_hypnet_hypparam = {  # cifar is 32 * 32
+vitlora_hypnet_hypparam = {
     "name": "vitlora_hypnet",
     "embedding_dim": None,
     "hidden_dim": 128,
-    "n_hidden": 2,
-    "num_users": None,  # this is hardcoded for now
+    "n_hidden": 2
 }
 
 

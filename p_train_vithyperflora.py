@@ -15,7 +15,7 @@ import os
 
 from config.hypparam_ViTLora_HypNet import create_architectures
 from misc.helper_functs import (get_classes2indicator,
-                                get_class2sample_dict,
+                                get_class2samples_dict,
                                 get_param_count,
                                 get_model_info,
                                 set_pretr_weights,
@@ -34,15 +34,18 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
+# A note on variable naming: there are three type of models: fixed user rep generator (user),
+# hypernetwork for weight generation (hyp), target client model (tg).
+
 def create_users(num_users, userrep_list, usermodel, tgmodel):
     usermodel_list = []
     tgmodel_list = []
     for uidx in range(num_users):
-        # copy tgarch (with pretrained weights)
+        # copy tgmodel (with pretrained weights)
         tgmodel_list.append(copy.deepcopy(tgmodel))  # user model
-        # copy userarch (with appropriate initialization)
+        # copy usermodel (with appropriate initialization)
         local_usermodel = copy.deepcopy(usermodel)
-        local_usermodel.assign_param(userrep_list[uidx])  # assigned weights should be frozen
+        local_usermodel.assign_param(userrep_list[uidx])
         usermodel_list.append(local_usermodel)  # user representation (a model that returns a fixed rep vector)
     return usermodel_list, tgmodel_list
 
@@ -62,8 +65,8 @@ def set_tgmodel_gradreq(tgmodel, hypmodel):
             assert False, "Key {} is not found in TargetModel".format(key_name)
 
 
-def run_evaluation(net_description,  # hyparch can be fed None to evaluate the loaded pretrained model
-                   hyparch,
+def run_evaluation(net_description,
+                   hyparch,  # hyparch can be fed None to evaluate the loaded all_tgarch_list directly
                    all_tgarch_list,
                    all_userarch_list,
                    dataset_eval,
@@ -76,8 +79,8 @@ def run_evaluation(net_description,  # hyparch can be fed None to evaluate the l
             hyparch.eval()
         for uidx in range(args.num_users):
             net_local = all_tgarch_list[uidx]
-            if hyparch is not None or args.do_debug:
-                # set the hyparch generated weights
+            if hyparch is not None:
+                # set the hyparch generated weights for each net_local (tgmodel)
                 _ = generate_weights(userrep=all_userarch_list[uidx](),
                                      tgmodel=net_local,
                                      hypmodel=hyparch)
@@ -112,7 +115,7 @@ def run_evaluation(net_description,  # hyparch can be fed None to evaluate the l
 
 
 def generate_weights(userrep, tgmodel, hypmodel):
-    # set the tgmodel with the hypmodel generated weights
+    # set the tgmodel with the hypmodel generated weights based on userrep
     w_tgmodel = tgmodel.state_dict()
     w_tgmodel_assignable_dict = hypmodel(userrep)[0]
     for k, v in w_tgmodel_assignable_dict.items():
@@ -166,8 +169,7 @@ def form_psuser(usermodel_pair, class2samples_train_pair, args):
     psrep[:, classes_chose] = 1  # fill the pseudo_rep
     psusers_train_pair = []
     for c2s_tr_user in class2samples_train_pair:
-        # get all samples in client uidx that belongs to a class marked by the pseudo_rep
-        # for-if could be made more efficient by using set intersection
+        # get all samples in client uidx that belongs to a class present in the pseudo_rep
         psusers_train = []
         for label in classes_chose.cpu().numpy():
             if label in c2s_tr_user:
@@ -181,10 +183,10 @@ def train_hypnet_paired(user_train_lr,
                         dataset_tr, sample_idxs_tr_pair,
                         hypmodel, tgmodel_pair, pseudouser_rep,
                         args):
-    # two LOCAL_Trainer_HN (list) to alternate net_local training
-    # create LocalTrainer only if there are actually data
     assert len(sample_idxs_tr_pair) == 2 and len(tgmodel_pair) == 2, \
         "usermodel_pair and class2samples_train_pair should have a length of 2"
+    # two LOCAL_Trainer_HN (list) to alternate net_local training
+    # create LocalTrainer only if there are actually data
     localtrainer_list = [LocalTrainer_HN(dataset_tr=dataset_tr,
                                          idxs_tr=sample_idxs_tr_pair[loc_uidx],
                                          local_bs=args.local_bs) for
@@ -195,8 +197,8 @@ def train_hypnet_paired(user_train_lr,
                                                 tgmodel=tgmodel_pair[0],
                                                 hypmodel=hypmodel)
     w_tgmodel_init = copy.deepcopy(tgmodel_pair[0].state_dict())
-    w_tgmodel_fin = None  # make sure model actually undergoes training
-    for ep in range(args.local_ep):  # alternated training keep trakc of comm cost
+    w_tgmodel_fin = None
+    for ep in range(args.local_ep):  # alternating training between client pair
         for loc_uidx in range(len(localtrainer_list)):
             w_tgmodel_fin, *_ = localtrainer_list[loc_uidx].do_train(net=tgmodel_pair[loc_uidx],
                                                                      lr=user_train_lr,
@@ -250,19 +252,19 @@ if __name__ == '__main__':
     EXP_TYPE_STUB += '_users_split_ratio_{}'.format(_args.users_split_ratio)
     if not os.path.exists(os.path.join(base_dir, EXP_TYPE_STUB)):
         os.makedirs(os.path.join(base_dir, EXP_TYPE_STUB), exist_ok=True)
-    # define results file and variable
     results_save_path = os.path.join(base_dir, EXP_TYPE_STUB, 'results.csv')
 
     # LOAD DATASET
     _dataset_train, _dataset_valid, _dataset_test, *_ = fetch_data_w_rand_order(_args)
     _data_info_path = os.path.join(base_dir, 'dict_users.pkl')
-    # note that train and valid set should have no common indices. Test set is taken from a different partition.
+    # note that train and valid set are taken from the same partition and should have no common indices;
+    # test set is taken from a different partition
     with open(_data_info_path, 'rb') as handle:
         _dict_users_train, _dict_users_valid, _dict_users_test = pickle.load(handle)
     assert all([len(v) > 0 for k, v in _dict_users_valid.items()]), \
         "(Assertion) Must have validation set for each user."
-    _class2samples_train = get_class2sample_dict(dataset=_dataset_train, dict_users=_dict_users_train)
-    _class2samples_valid = get_class2sample_dict(dataset=_dataset_valid, dict_users=_dict_users_valid)
+    _class2samples_train = get_class2samples_dict(dataset=_dataset_train, dict_users=_dict_users_train)
+    _class2samples_valid = get_class2samples_dict(dataset=_dataset_valid, dict_users=_dict_users_valid)
 
     # GET MODEL INFO
     # instantiate usermodel, tgmodel and hypmodel
@@ -309,8 +311,6 @@ if __name__ == '__main__':
     print("Bystander Users (Num {}) Idx: {}".format(_byst_num_users, _idxs_user_byst))
 
     # TEST PRETRAINED MODEL IN CONTEXT OF CURRENT PFL SCENARIO
-    # TODO: create a model assessment function, as the code is repeated at the start and end.
-    # set local _user models with initial hyperparameter
     _ = run_evaluation(net_description="Initial Weights (Test)",
                        hyparch=None,
                        all_tgarch_list=_all_tgarch_list,
@@ -323,12 +323,10 @@ if __name__ == '__main__':
                        )
 
     # EXPERIMENT INITIALIZATION
-    _results = []  # stores assessed results
-    # declare best checkpoint variables
+    _results = []
     _best_hyparch, _best_acc, _best_epoch, = None, None, None
-    # create misc variables
-    _tg_lr_curr = _args.tg_lr  # set initial tg_lr, may decay; is used to create new optimizer in LocalTrainer
-    _hyp_lr_curr = _args.hyp_lr
+    _tg_lr_curr = _args.tg_lr  # set initial tg_lr, may decay
+    _hyp_lr_curr = _args.hyp_lr  # set initial hyp_lr, may decay
 
     # CREATE HYPARCH OPTIMIZER
     _hyp_optimizer = torch.optim.SGD(params=_hyparch.parameters(),
@@ -350,7 +348,7 @@ if __name__ == '__main__':
                                                                                  _hyp_lr_curr,
                                                                                  _idxs_users_sel))
         # HYPERARCH TRAINING: PHASE 1
-        ## do train standard
+        # do train standard
         for _uidx in _idxs_users_sel:  # train one client at a time (can we parallelize it)?
             _hypmodel_grad = \
                 train_hypnet_standard(user_train_lr=_tg_lr_curr,
@@ -360,14 +358,15 @@ if __name__ == '__main__':
                                       tgmodel=_all_tgarch_list[_uidx],
                                       user_rep=_all_userarch_list[_uidx](),
                                       args=_args)
+            # accum grad
             for _p, _g in zip(_hyparch.parameters(), _hypmodel_grad):
                 _p.grad = _g if (_p.grad is None) else (_p.grad + _g)
 
         # HYPERARCH TRAINING: PHASE 2
-        # sample client pair to create pseudo _user
+        # sample client pair to create pseudo user
         _idxs_userpairs_sel = sample_user_pairs(idxs_users_sel=_idxs_users_sel)
-        for _userpair_idx in _idxs_userpairs_sel:  # assume is group for future development
-            # build pseudo _user (client pair) dataset
+        for _userpair_idx in _idxs_userpairs_sel:
+            # build pseudo user (client pair) dataset
             _classes_chose, _pseudouser_rep, _psusers_train_pair = form_psuser(
                 usermodel_pair=[_all_userarch_list[_uidx] for _uidx in _userpair_idx],
                 class2samples_train_pair=[_class2samples_train[_uidx] for _uidx in _userpair_idx],
@@ -382,13 +381,12 @@ if __name__ == '__main__':
                                     tgmodel_pair=[_all_tgarch_list[_uidx] for _uidx in _userpair_idx],
                                     pseudouser_rep=_pseudouser_rep,
                                     args=_args)
-
-            # function ends here
+            # accum grad
             for _p, _g in zip(_hyparch.parameters(), _hypmodel_grad):
                 _p.grad = _g if (_p.grad is None) else (_p.grad + _g)
 
         for _p in _hyparch.parameters():
-            _p.grad /= (len(_idxs_users_sel) + len(_idxs_userpairs_sel))  # average over all gradients
+            _p.grad /= (len(_idxs_users_sel) + len(_idxs_userpairs_sel))  # average gradients over all users
 
         torch.nn.utils.clip_grad_norm_(_hyparch.parameters(), _args.hyp_g_clip)
         _hyp_optimizer.step()
@@ -402,7 +400,6 @@ if __name__ == '__main__':
 
         # DO VALIDATION (direct avg-acc over all users)
         if (_round + 1) % _args.val_interval == 0:
-            # copy weights of each target model weight to avoid potential disruption of training
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
                 run_evaluation(net_description="Weights on Epoch {} (Val)".format(_round),
                                hyparch=_hyparch,

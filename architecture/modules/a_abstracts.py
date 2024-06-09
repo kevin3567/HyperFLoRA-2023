@@ -2,10 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-"""
-Modules Abstracts for Functionalities not Default in nn.Module.
-"""
-
 
 class InitializableAbstract(nn.Module):
     def init_param(self):

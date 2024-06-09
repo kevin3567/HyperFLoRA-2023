@@ -4,11 +4,9 @@ cifar100 \
 --num_classes \
 100 \
 --rounds \
-10000 \
+20000 \
 --tg_lr \
 0.1 \
---hyp_lr \
-0.01 \
 --num_users \
 100 \
 --shard_per_user \
@@ -16,7 +14,7 @@ cifar100 \
 --frac \
 0.1 \
 --local_ep \
-3 \
+1 \
 --local_bs \
 50 \
 --seed \
@@ -31,4 +29,3 @@ cifar100 \
 50 \
 --results_save \
 run_exp \
-

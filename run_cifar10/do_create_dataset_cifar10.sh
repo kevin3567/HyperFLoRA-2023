@@ -4,11 +4,9 @@ cifar10 \
 --num_classes \
 10 \
 --rounds \
-5000 \
+10000 \
 --tg_lr \
 0.1 \
---hyp_lr \
-0.01 \
 --num_users \
 100 \
 --shard_per_user \
@@ -31,4 +29,3 @@ cifar10 \
 50 \
 --results_save \
 run_exp \
-

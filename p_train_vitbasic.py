@@ -39,9 +39,8 @@ from misc.helper_functs import (sample_users,
 
 
 # manually define the weights that should be frozen, public, and private.
-def set_weight_mode(model, w_all_keys):  # this only produces lists of keys, it does not set or modify anything.
+def set_weight_mode(model, w_all_keys):  # this only produces lists of keys, it does not modify anything.
     w_pr_keys = []
-    # w_pr_keys = [x for x in w_all_keys if x.startswith(("network.head.",))]
     w_pb_keys = list(set([x for x in w_all_keys if x.startswith(("network.",))]). \
                      difference(w_pr_keys))
     w_frz_keys = list(set([x for x in w_all_keys if x.startswith(("network.",))]). \
@@ -228,19 +227,17 @@ if __name__ == '__main__':
                        args=_args)
 
     # EXPERIMENT INITIALIZATION
-    # define _results file and variable
     _results = []
-    # declare evaluation variables
     _loss_train = []
     _net_central_best, _net_user_list_best, _best_acc, _best_epoch = None, None, None, None
     # create misc variables
     _tg_lr_curr = _args.tg_lr  # set initial _tg_lr_curr, may decay over time
     _w_central_accum = copy.deepcopy(_net_central.state_dict())
 
-    for _round in range(_args.rounds):  # epoch here refers to communication round
+    for _round in range(_args.rounds):
+        # setup
         _round_start = time.time()
 
-        # setup
         for k in _w_central_keys:
             _w_central_accum[k] = torch.zeros_like(_w_central_accum[k])
         _local_loss_list = []
@@ -272,14 +269,12 @@ if __name__ == '__main__':
             _w_central_accum[_k] = torch.div(_w_central_accum[_k], _total_sample_ct)
         _net_central.load_state_dict(_w_central_accum)
 
-        # do _tg_lr_curr decay after each comm round, as is typical (moved from before update global weights for readability)
+        # decay tg_lr after each comm round
         _tg_lr_curr *= _args.tg_lr_decay
 
-        # print loss
         _loss_avg = sum(_local_loss_list) / len(_local_loss_list)
         _loss_train.append(_loss_avg)
 
-        # If all client have same number of val samples, then avg-local-acc == glob-acc.
         if (_round + 1) % _args.val_interval == 0:
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
                 run_evaluation(net_description="Weights on Epoch {} (Val)".format(_round),
@@ -294,7 +289,7 @@ if __name__ == '__main__':
                                idxs_user_byst=_idxs_user_byst,
                                args=_args)
 
-            if _best_acc is None or _acc_val_loc_part_mean > _best_acc:  # find best based on participating users
+            if _best_acc is None or _acc_val_loc_part_mean > _best_acc:  # find best ckpt by part-val-acc
                 _net_central_best = copy.deepcopy(_net_central)
                 _net_user_list_best = copy.deepcopy(_net_user_list)
                 _best_acc = _acc_val_loc_part_mean

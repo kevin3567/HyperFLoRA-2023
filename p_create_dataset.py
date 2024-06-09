@@ -19,14 +19,14 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
     # SAMPLE-TO-SHARD PROCESSING
     # shatter each class into shards to build the client dataset
     num_classes = len(dict_dataset)
-    shard_per_class = int(shard_per_user * num_users / num_classes)  # reasonable only if dataset is balanced
-    for label in dict_dataset.keys():  # for each unique label, do ...
+    shard_per_class = int(shard_per_user * num_users / num_classes)
+    for label in dict_dataset.keys():  # for each unique label
         x = dict_dataset[label]  # get list of relevant samples by idx
-        num_leftover = len(x) % shard_per_class  # get remainder given balanced generate-to=shard assignment
+        num_leftover = len(x) % shard_per_class  # get remainder samples count
         leftover = x[-num_leftover:] if num_leftover > 0 else []
         x = np.array(x[:-num_leftover]) if num_leftover > 0 else np.array(x)
         x = x.reshape((shard_per_class, -1))  # reorganize samples over shards_per_class
-        x = list(x)  # convert from tensor to list, allow for variable generate count per shard
+        x = list(x)  # convert from tensor to list
 
         for i, idx in enumerate(leftover):  # add a leftover sample to each shards
             x[i] = np.concatenate([x[i], [idx]])
@@ -38,7 +38,7 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
         rand_set_all = list(range(num_classes)) * shard_per_class  # repeat [1..num_classes] tiling by shard_per_classes
         np.random.shuffle(rand_set_all)
         rand_set_all = np.array(rand_set_all).reshape((num_users, -1))  # random assignment of shard to user
-        # KNOWN ISSUE: be aware that sometimes, a user may grad mono-labels shards. If so, try a different seed.
+        # KNOWN ISSUE: be aware that sometimes, a user may have mono-label shards. If so, try a different seed.
         print("[UNRESOLVED] Dummy Users With Mono-Label Shards: {}".format(  # this should be empty
             [x for x in rand_set_all if np.all(x == x[0])]),
             flush=True)
@@ -46,13 +46,13 @@ def noniid(dict_dataset, num_users, shard_per_user, rand_set_all=[]):
     # SHARD-TO-USER PROCESSING (from label-to-user)
     # based on labels acquired by user, assign a random shard belonging to the label to the user;
     # sample (idxs) within the shard are thereby acquired by the user.
-    for i in range(num_users):  # for each user, do ...
+    for i in range(num_users):  # for each user
         rand_set_label = rand_set_all[i]  # label assigned to user
         rand_set = []
         for label in rand_set_label:  # for each label assigned to user, select one shard randomly
             # selected shard (and corresponding samples) are removed after selection
             idx = np.random.choice(len(dict_dataset[label]),
-                                   replace=False)  # why replace if doing only single randchoice?
+                                   replace=False)
             rand_set.append(dict_dataset[label].pop(idx))  # append popped idx (as it is selected)
         dict_users[i] = np.concatenate(rand_set)  # store sample-to-user
 
@@ -68,7 +68,6 @@ def organize_data_shard(args):
         exit("IID distribution is not implemented.")
         raise NotImplementedError
     else:
-        # create test set based on rand_set_all label-to-user assignment
         users_tr_train, rand_set_all = noniid(dict_tr_train, args.num_users, args.shard_per_user)
         users_tr_valid, rand_set_all = noniid(dict_tr_valid, args.num_users, args.shard_per_user,
                                               rand_set_all=rand_set_all)

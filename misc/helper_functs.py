@@ -5,14 +5,15 @@ from misc.user_local import LocalTester_HN, LocalTrainer_HN
 
 
 def get_classes2indicator(classes_list, num_classes):
-    """Generate indicator vector from dataset_tr shards"""
+    # generate indicator vector from dataset_tr shards
     classes_uniq = torch.LongTensor(np.unique(classes_list))
     class_indicator = torch.zeros(1, num_classes)
     class_indicator[0, classes_uniq] = 1
     return class_indicator
 
 
-def get_class2sample_dict(dataset, dict_users):
+def get_class2samples_dict(dataset, dict_users):
+    # get a dict of which class contains which samples
     class2samples = {}
     for uidx, sidx_list in dict_users.items():
         class2samples[uidx] = {}
@@ -33,6 +34,7 @@ def get_param_count(module):
 
 
 def get_model_info(model, modelname):
+    # print model info
     w_model_dict = model.state_dict()
     w_model_keys = [x for x in w_model_dict.keys()]
     print("{} Weight Key Set".format(modelname))
@@ -45,6 +47,7 @@ def get_model_info(model, modelname):
 
 
 def set_pretr_weights(model, ckpt_path):
+    # load pretrained weights to a model
     w_model_dict = model.state_dict()
     w_model_keys = [x for x in w_model_dict.keys()]
 
@@ -61,12 +64,14 @@ def set_pretr_weights(model, ckpt_path):
 
 
 def check_model_gradreq(model, modelname):
+    # print out grad_req of model parameters
     print("Check {} grad_req status.".format(modelname))
     for key_name, param in model.named_parameters():
         print("--{}: {}".format(key_name, param.requires_grad))
 
 
 def split_users(num_users, split_ratio):
+    # split users for part-byst split
     left_num_users = int(num_users * split_ratio)
     idxs_user_left = list(range(left_num_users))
     right_num_users = num_users - left_num_users
@@ -75,17 +80,21 @@ def split_users(num_users, split_ratio):
 
 
 def sample_users(idxs_user_part, frac):
+    # randomly select users
     m = max(int(frac * len(idxs_user_part)), 1)
     idxs_users_sel = np.random.choice(idxs_user_part, m, replace=False)
     return idxs_users_sel
 
 
 def sample_user_pairs(idxs_users_sel):
+    # randomly form user pairs from user list (assume is generated from sample_user)
     idx_shuf = np.random.permutation(len(idxs_users_sel))
     idxs_userpairs_sel = idxs_users_sel[idx_shuf].reshape(-1, 2)
     return idxs_userpairs_sel
 
+
 def transfer_weights(weight_keys, src_model, tgt_model):
+    # copy weight from src_model to tgt_model
     src_model_state = src_model.state_dict()
     tgt_model_state = tgt_model.state_dict()
     for k in weight_keys:
@@ -106,7 +115,9 @@ def eval_all_users(net_list, dataset_eval, dict_users_eval, num_users, batch_siz
         return accuracy_list, test_loss_list
     return accuracy_list.mean(), test_loss_list.mean()
 
+
 def process_result(acc_list, loss_list, idxs_part, idxs_byst):
+    # process evaluation results
     acc_part_mean = -1 if len(idxs_part) == 0 else acc_list[idxs_part].mean()
     acc_byst_mean = -1 if len(idxs_byst) == 0 else acc_list[idxs_byst].mean()
     acc_all_mean = acc_list.mean()

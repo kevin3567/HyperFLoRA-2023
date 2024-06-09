@@ -112,8 +112,8 @@ if __name__ == "__main__":
     }
     tgmodel = ViTLora_Classifier(vitlora_hypparam)
 
-    vitlora_hypnet_hypparam = {  # cifar 10 is 32 * 32
-        "name": "vitlora_hypnet",  # fixed param for now=
+    vitlora_hypnet_hypparam = {
+        "name": "vitlora_hypnet",
         "embedding_dim": 32,
         "hidden_dim": 100,
         "n_hidden": 3,
