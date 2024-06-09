@@ -97,7 +97,7 @@ def run_evaluation(net_description,  # hyparch can be fed None to evaluate the l
                            loss_list=loss_eval_local_list,
                            idxs_part=idxs_user_part,
                            idxs_byst=idxs_user_byst)
-        print("Model with {}."
+        print("Model with {}, "
               "Average Participant Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
               "Average Bystander Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
               "Average All Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
@@ -311,7 +311,7 @@ if __name__ == '__main__':
     # TEST PRETRAINED MODEL IN CONTEXT OF CURRENT PFL SCENARIO
     # TODO: create a model assessment function, as the code is repeated at the start and end.
     # set local _user models with initial hyperparameter
-    _ = run_evaluation(net_description="Initial Model",
+    _ = run_evaluation(net_description="Initial Weights (Test)",
                        hyparch=None,
                        all_tgarch_list=_all_tgarch_list,
                        all_userarch_list=_all_userarch_list,
@@ -404,7 +404,7 @@ if __name__ == '__main__':
         if (_round + 1) % _args.val_interval == 0:
             # copy weights of each target model weight to avoid potential disruption of training
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
-                run_evaluation(net_description="Trained on Epoch {}".format(_round),
+                run_evaluation(net_description="Weights on Epoch {} (Val)".format(_round),
                                hyparch=_hyparch,
                                all_tgarch_list=_all_tgarch_list,
                                all_userarch_list=_all_userarch_list,
@@ -426,7 +426,7 @@ if __name__ == '__main__':
                                           columns=['epoch', 'loss_val', 'acc_val', 'best_acc'])
             _final_results.to_csv(results_save_path, index=False)
 
-        if (_round + 1) % _args.save_interval == 0:  # TODO: Should only save after validation
+        if (_round + 1) % _args.save_interval == 0:
             # save current round hyparch, in case training crashes
             _model_save_path = os.path.join(base_dir, EXP_TYPE_STUB, 'ckpt_{}.pt'.format(_round + 1))
             torch.save((_hyparch.state_dict()), _model_save_path)
@@ -442,8 +442,8 @@ if __name__ == '__main__':
 
     # DO TESTING
     print("Testing the network on test set.", flush=True)
-    _ckpt_types = {"Latest Model": _hyparch,
-                   "Best Model": _best_hyparch}
+    _ckpt_types = {"Latest Weights (Test)": _hyparch,
+                   "Best Weights (Test)": _best_hyparch}
 
     for _net_desc, _hyparch_fin in _ckpt_types.items():
         _ = run_evaluation(net_description=_net_desc,

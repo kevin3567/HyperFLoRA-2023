@@ -38,7 +38,7 @@ from misc.helper_functs import (sample_users,
                                 eval_all_users)
 
 
-# define the weights that should be frozen, public, and private.
+# manually define the weights that should be frozen, public, and private.
 def set_weight_mode(model, w_all_keys):  # this only produces lists of keys, it does not set or modify anything.
     w_pr_keys = []
     # w_pr_keys = [x for x in w_all_keys if x.startswith(("network.head.",))]
@@ -104,7 +104,7 @@ def run_evaluation(net_description,
                            loss_list=loss_eval_loc_list,
                            idxs_part=idxs_user_part,
                            idxs_byst=idxs_user_byst)
-        print("Model with {}."
+        print("Model with {}, "
               "Average Participant Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
               "Average Delayed Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, "
               "Average All Eval Accuracy/Loss: {:.2f}(w/{:.2f})/{:.3f}, ".format(
@@ -215,7 +215,7 @@ if __name__ == '__main__':
     print("Bystander Users (Num {}) Idx: {}".format(_byst_num_users, _idxs_user_byst))
 
     # TEST INIT MODEL
-    _ = run_evaluation(net_description="Initial Model",
+    _ = run_evaluation(net_description="Initial Weights (Test)",
                        model_central=_net_central,
                        model_user_list=_net_user_list,
                        w_public_keys=_w_public_keys,
@@ -282,7 +282,7 @@ if __name__ == '__main__':
         # If all client have same number of val samples, then avg-local-acc == glob-acc.
         if (_round + 1) % _args.val_interval == 0:
             _acc_val_loc_part_mean, _acc_val_loc_part_std, _loss_val_loc_part_mean, *_ = \
-                run_evaluation(net_description="Trained on Epoch {}".format(_round),
+                run_evaluation(net_description="Weights on Epoch {} (Val)".format(_round),
                                model_central=_net_central,
                                model_user_list=_net_user_list,
                                w_public_keys=_w_public_keys,
@@ -325,8 +325,8 @@ if __name__ == '__main__':
 
     # DO TESTING
     print("Testing the network on test set.", flush=True)
-    _ckpt_types = {"Latest Model": (_net_central, _net_user_list),
-                   "Best Model": (_net_central_best, _net_user_list_best)}
+    _ckpt_types = {"Latest Weights (Test)": (_net_central, _net_user_list),
+                   "Best Weights (Test)": (_net_central_best, _net_user_list_best)}
 
     for _net_desc, (_net_central_fin, _net_user_list_fin) in _ckpt_types.items():
         _ = run_evaluation(net_description=_net_desc,
