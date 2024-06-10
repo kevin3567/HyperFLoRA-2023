@@ -1,6 +1,5 @@
 This is the code for the paper HyperFLoRA: Federated Learning with 
-Instantaneous Personalization (https://epubs.siam.org/doi/10.1137/1.
-9781611978032.94)
+Instantaneous Personalization (https://epubs.siam.org/doi/10.1137/1.9781611978032.94)
 
 For cifar10 experiment (in order):
 - to generate data partition:
