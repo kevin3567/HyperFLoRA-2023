@@ -29,7 +29,7 @@ Note that:
 - In `p_train_vitbasic.py`, central refers to the global models. 
   user refers to the local model.
 - In `p_train_vithyperflora.py`, there are three type of models: user (user), 
-  hypernet (hyp), target (tg). (Note that user model trainable, as it only 
+  hypernet (hyp), target (tg). (Note that user model not trainable, as it only 
   outputs a fixed client representation vector.)
 - There are three type of dataset: train, valid(ation), test. Note that 
   train and validation sets are partitioned from a common set, 
@@ -37,16 +37,16 @@ Note that:
   separate set.
 - There are two types of users: participant (does local training) and 
   bystander (does no training). Designation follows that the first 80% 
-  (adjustable) of users are participants, and the latter are bystander. This 
+  (adjustable) of users are participants, and the rest are bystanders. This 
   is for consistency between experiments. Dataset alloted to each user is 
-  determined by `p_create_dataset.py`, but should all be disjoint.
+  randomly determined by `p_create_dataset.py`, but should all be disjoint.
 - The term "pseudo" refers to object/process conducted within a 
   pseudo-client (formed by pairing two users, and alternating LoRA training 
-  between them)
+  between them).
 - In `p_train_vitbasic.py` and `p_train_vithyperflora.py`, variables after 
   `if __name__ == "__main__"` starts with "_" to prevent accidental shadowing 
   of variables within declared functions.
-- In general, training outputs are shown as printout. So using `nohup` and a 
+- In general, training outputs are shown by printout. So using `nohup` and a 
   log file to acquire the printout information is encouraged.
 - To get the best model from the experiment, look for the model file 
   with the `best_` tag. For example the best model acquired after running 
